@@ -1,0 +1,22 @@
+.metric { min-height: 100%; }
+.hero-metric { border-left: 0.4rem solid var(--bs-primary); }
+.setup-step { border: 1px solid var(--bs-border-color); color: inherit; background: var(--bs-body-bg); }
+.setup-step.done { border-color: var(--bs-success); }
+.purchase-card { background: var(--bs-tertiary-bg); }
+.table td, .table th { vertical-align: middle; }
+
+@media (max-width: 576px) {
+  h1 { font-size: 1.6rem; }
+  .display-5 { font-size: 2rem; }
+  .btn, .form-control, .form-select { min-height: 42px; }
+  .table-responsive table { min-width: 680px; }
+  .card-body { padding: 1rem; }
+}
+
+@media (prefers-color-scheme: dark) {
+  .theme-auto {
+    color-scheme: dark;
+    background: #121212;
+    color: #e9ecef;
+  }
+}

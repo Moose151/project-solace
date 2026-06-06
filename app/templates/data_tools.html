@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h1 class="mb-1">Data Tools</h1>
+    <p class="text-muted mb-0">Import, export, and backup Project Solace data.</p>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5">Import recurring bills</h2>
+        <p class="text-muted">Upload a CSV or XLSX file. Supported columns include name, amount, frequency, due_day, due_month, start_date, end_date, category, active, autopay, account_name, include_in_set_aside, and notes.</p>
+        <form method="post" action="{{ url_for('main.import_bills') }}" enctype="multipart/form-data">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input class="form-control mb-3" type="file" name="file" accept=".csv,.xlsx">
+          <button class="btn btn-primary">Import bills</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5">Export and backup</h2>
+        <div class="d-grid gap-2">
+          <a class="btn btn-outline-primary" href="{{ url_for('main.export_bills_csv') }}">Export bills CSV</a>
+          <a class="btn btn-outline-primary" href="{{ url_for('main.export_purchases_csv') }}">Export planned purchases CSV</a>
+          <a class="btn btn-outline-success" href="{{ url_for('main.export_backup_xlsx') }}">Export readable XLSX backup</a>
+          <a class="btn btn-outline-secondary" href="{{ url_for('main.export_database_zip') }}">Download SQLite database ZIP</a>
+        </div>
+        <p class="text-muted small mt-3 mb-0">The database ZIP is the safest full backup. The CSV/XLSX exports are for review and migration.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

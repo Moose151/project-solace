@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="mb-3">Pay Cycle</h1>
+<div class="row g-3 mb-4">
+  <div class="col-md-3"><div class="card metric"><div class="card-body"><div class="text-muted">Cycle</div><div class="h6">{{ cycle_start.strftime('%d %b') }} – {{ cycle_end.strftime('%d %b %Y') }}</div></div></div></div>
+  <div class="col-md-3"><div class="card metric"><div class="card-body"><div class="text-muted">Next payday</div><div class="h5">{{ next_payday.strftime('%d %b %Y') }}</div></div></div></div>
+  <div class="col-md-3"><div class="card metric"><div class="card-body"><div class="text-muted">Unpaid bills this cycle</div><div class="h3">{{ settings.currency_symbol }}{{ '%.2f'|format(bills_due) }}</div></div></div></div>
+  <div class="col-md-3"><div class="card metric hero-metric"><div class="card-body"><div class="text-muted">Average set-aside</div><div class="h3">{{ settings.currency_symbol }}{{ '%.2f'|format(total_average) }}</div></div></div></div>
+</div>
+
+<div class="card shadow-sm mb-4"><div class="card-body">
+  <h2 class="h5">Recommended set-aside breakdown</h2>
+  <table class="table table-sm w-auto mb-0">
+    <tr><th>Recurring bill average</th><td>{{ settings.currency_symbol }}{{ '%.2f'|format(recurring_average) }}</td></tr>
+    <tr><th>Planned purchase contributions</th><td>{{ settings.currency_symbol }}{{ '%.2f'|format(purchase_average) }}</td></tr>
+    <tr><th>Buffer</th><td>{{ settings.currency_symbol }}{{ '%.2f'|format(settings.default_buffer_amount) }}</td></tr>
+    <tr><th>Total</th><td><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(total_average) }}</strong></td></tr>
+  </table>
+</div></div>
+
+<div class="card shadow-sm"><div class="card-body">
+  <h2 class="h5">Bills in this cycle</h2>
+  <div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Date</th><th>Bill</th><th>Amount</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for item in occurrences %}
+    <tr>
+      <td>{{ item.due_date }}</td><td>{{ item.bill.name }}</td><td>{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</td><td><span class="badge text-bg-{{ 'success' if item.status == 'Paid' else 'warning' if item.status == 'Skipped' else 'secondary' }}">{{ item.status }}</span></td>
+      <td class="text-end text-nowrap">
+        {% if item.status == 'Paid' %}
+        <form class="d-inline" method="post" action="{{ url_for('main.mark_occurrence_unpaid', occurrence_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-secondary btn-sm">Mark unpaid</button></form>
+        {% elif item.status == 'Skipped' %}
+        <form class="d-inline" method="post" action="{{ url_for('main.mark_occurrence_unpaid', occurrence_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-secondary btn-sm">Restore</button></form>
+        {% else %}
+        <form class="d-inline" method="post" action="{{ url_for('main.mark_occurrence_paid', occurrence_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-success btn-sm">Paid</button></form>
+        <form class="d-inline" method="post" action="{{ url_for('main.skip_occurrence', occurrence_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-secondary btn-sm">Skip</button></form>
+        {% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="text-muted">No bills in this pay cycle.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div></div>
+{% endblock %}

@@ -1,0 +1,18 @@
+services:
+  project-solace:
+    build: .
+    image: project-solace:latest
+    container_name: project-solace
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${SOLACE_PORT:-5055}:5000"
+    volumes:
+      - ./instance:/app/instance
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s

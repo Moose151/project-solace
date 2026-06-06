@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="mb-3">{{ title }}</h1>
+<form method="post" class="card shadow-sm"><div class="card-body row g-3">
+  {{ form.hidden_tag() }}
+  <div class="col-md-6">{{ form.name.label(class="form-label") }} {{ form.name(class="form-control") }}</div>
+  <div class="col-md-3">{{ form.amount.label(class="form-label") }} {{ form.amount(class="form-control") }}</div>
+  <div class="col-md-3">{{ form.frequency.label(class="form-label") }} {{ form.frequency(class="form-select") }}</div>
+  <div class="col-md-3">{{ form.due_day.label(class="form-label") }} {{ form.due_day(class="form-control") }}</div>
+  <div class="col-md-3">{{ form.due_month.label(class="form-label") }} {{ form.due_month(class="form-control") }}<div class="form-text">Use for yearly/six-monthly items.</div></div>
+  <div class="col-md-3">{{ form.start_date.label(class="form-label") }} {{ form.start_date(class="form-control") }}</div>
+  <div class="col-md-3">{{ form.end_date.label(class="form-label") }} {{ form.end_date(class="form-control") }}</div>
+  <div class="col-md-4">{{ form.category_id.label(class="form-label") }} {{ form.category_id(class="form-select") }}</div>
+  <div class="col-md-4">{{ form.account_name.label(class="form-label") }} {{ form.account_name(class="form-control") }}</div>
+  <div class="col-md-4 pt-4">
+    <div class="form-check">{{ form.active(class="form-check-input") }} {{ form.active.label(class="form-check-label") }}</div>
+    <div class="form-check">{{ form.autopay(class="form-check-input") }} {{ form.autopay.label(class="form-check-label") }}</div>
+    <div class="form-check">{{ form.include_in_set_aside(class="form-check-input") }} {{ form.include_in_set_aside.label(class="form-check-label") }}</div>
+  </div>
+  <div class="col-12">{{ form.notes.label(class="form-label") }} {{ form.notes(class="form-control", rows="3") }}</div>
+  {% if edit_mode %}
+  <div class="col-12">
+    <div class="card border-warning">
+      <div class="card-body">
+        <label class="form-label fw-semibold">Occurrence update behaviour</label>
+        <select class="form-select" name="occurrence_update_scope">
+          <option value="future_unpaid" selected>Update future unpaid occurrences only</option>
+          <option value="all_unpaid">Update all unpaid occurrences in the budget year</option>
+        </select>
+        <div class="form-text">Paid occurrences are always preserved.</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  <div class="col-12"><button class="btn btn-primary">Save</button> <a href="{{ url_for('main.bills') }}" class="btn btn-outline-secondary">Cancel</a></div>
+</div></form>
+{% endblock %}

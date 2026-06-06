@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h1 class="mb-1">Dashboard</h1>
+    <div class="text-muted">Current pay cycle: {{ cycle_start.strftime('%d %b %Y') }} – {{ cycle_end.strftime('%d %b %Y') }}</div>
+  </div>
+  <a href="{{ url_for('main.pay_cycle') }}" class="btn btn-outline-primary">Open pay cycle</a>
+</div>
+
+{% if show_setup %}
+<div class="card shadow-sm border-primary mb-4">
+  <div class="card-body">
+    <h2 class="h5">Finish setup</h2>
+    <p class="text-muted mb-3">Complete these once so Solace can calculate your fortnightly set-aside properly.</p>
+    <div class="row g-2">
+      {% for step in setup_steps %}
+      <div class="col-md-4">
+        <a class="setup-step d-block p-3 rounded text-decoration-none {{ 'done' if step.done else '' }}" href="{{ step.url }}">
+          <span class="badge {{ 'text-bg-success' if step.done else 'text-bg-secondary' }} me-2">{{ 'Done' if step.done else 'To do' }}</span>{{ step.label }}
+        </a>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-4"><div class="card metric hero-metric"><div class="card-body"><div class="text-muted">Set aside this fortnight</div><div class="display-5 fw-semibold">{{ settings.currency_symbol }}{{ '%.2f'|format(total_set_aside) }}</div><div class="text-muted small">Next payday: {{ next_payday.strftime('%d %b %Y') }}</div></div></div></div>
+  <div class="col-lg-8">
+    <div class="row g-3">
+      <div class="col-md-4"><div class="card metric"><div class="card-body"><div class="text-muted">Recurring bills</div><div class="h3">{{ settings.currency_symbol }}{{ '%.2f'|format(bill_fortnightly_total) }}</div></div></div></div>
+      <div class="col-md-4"><div class="card metric"><div class="card-body"><div class="text-muted">Planned purchases</div><div class="h3">{{ settings.currency_symbol }}{{ '%.2f'|format(purchase_fortnightly_total) }}</div></div></div></div>
+      <div class="col-md-4"><div class="card metric"><div class="card-body"><div class="text-muted">Buffer</div><div class="h3">{{ settings.currency_symbol }}{{ '%.2f'|format(buffer_amount) }}</div></div></div></div>
+      <div class="col-md-6"><div class="card metric"><div class="card-body"><div class="text-muted">Monthly recurring average</div><div class="h4">{{ settings.currency_symbol }}{{ '%.2f'|format(monthly_total) }}</div></div></div></div>
+      <div class="col-md-6"><div class="card metric"><div class="card-body"><div class="text-muted">Annual recurring total</div><div class="h4">{{ settings.currency_symbol }}{{ '%.2f'|format(annual_total) }}</div></div></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body d-flex flex-column flex-md-row justify-content-between gap-3">
+    <div>
+      <div class="text-muted">Latest bills account balance</div>
+      {% if latest_balance %}
+        <div class="h3 mb-1">{{ settings.currency_symbol }}{{ '%.2f'|format(latest_balance.balance) }}</div>
+        <div class="text-muted small">Recorded {{ latest_balance.snapshot_date }}</div>
+      {% else %}
+        <div class="h5 mb-1">No balance recorded</div>
+        <div class="text-muted small">Add a manual balance snapshot if you want a simple set-aside account check.</div>
+      {% endif %}
+    </div>
+    <div>
+      <div class="text-muted">Unpaid before next payday</div>
+      <div class="h4 mb-1">{{ settings.currency_symbol }}{{ '%.2f'|format(current_cycle_unpaid) }}</div>
+      {% if latest_balance %}<div class="text-muted small">Projected after these bills: {{ settings.currency_symbol }}{{ '%.2f'|format(projected_balance_after_cycle) }}</div>{% endif %}
+    </div>
+    <div class="align-self-md-center"><a class="btn btn-outline-primary" href="{{ url_for('main.account_balance') }}">Update balance</a></div>
+  </div>
+</div>
+
+{% if overdue %}
+<div class="card shadow-sm border-danger mb-4">
+  <div class="card-body">
+    <h2 class="h5 text-danger">Overdue unpaid bills</h2>
+    <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Date</th><th>Bill</th><th>Amount</th><th></th></tr></thead>
+      <tbody>
+      {% for item in overdue %}
+      <tr>
+        <td>{{ item.due_date }}</td><td>{{ item.bill.name }}</td><td>{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</td>
+        <td class="text-end">
+          <form class="d-inline" method="post" action="{{ url_for('main.mark_occurrence_paid', occurrence_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-success btn-sm">Mark paid</button></form>
+          <form class="d-inline" method="post" action="{{ url_for('main.skip_occurrence', occurrence_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-secondary btn-sm">Skip</button></form>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <h2 class="h5">Due before next payday</h2>
+        {% if due_before_next_payday %}
+        <div class="table-responsive"><table class="table table-sm align-middle">
+          <thead><tr><th>Date</th><th>Bill</th><th>Amount</th><th></th></tr></thead>
+          <tbody>
+          {% for item in due_before_next_payday %}
+            <tr>
+              <td>{{ item.due_date }}</td><td>{{ item.bill.name }}</td><td>{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</td>
+              <td class="text-end">
+                <form class="d-inline" method="post" action="{{ url_for('main.mark_occurrence_paid', occurrence_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-success btn-sm">Paid</button></form>
+                <form class="d-inline" method="post" action="{{ url_for('main.skip_occurrence', occurrence_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-secondary btn-sm">Skip</button></form>
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table></div>
+        {% else %}<p class="text-muted mb-0">No unpaid bills due before next payday.</p>{% endif %}
+      </div>
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h5">Due in the next 30 days</h2>
+        {% if due_next_30_days %}
+        <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+          <thead><tr><th>Date</th><th>Bill</th><th>Amount</th><th>Status</th></tr></thead>
+          <tbody>
+          {% for item in due_next_30_days %}
+            <tr><td>{{ item.due_date }}</td><td>{{ item.bill.name }}</td><td>{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</td><td>{{ item.status }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table></div>
+        {% else %}<p class="text-muted mb-0">No unpaid bills due in the next 30 days.</p>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h5">Active planned purchases</h2>
+        {% if purchases %}
+          {% for purchase in purchases %}
+            {% set pct = (purchase.amount_saved / purchase.target_amount * 100) if purchase.target_amount else 0 %}
+            <div class="purchase-card border rounded p-3 mb-3">
+              <div class="d-flex justify-content-between gap-3"><strong>{{ purchase.name }}</strong><span>{{ settings.currency_symbol }}{{ '%.2f'|format(planned_purchase_fortnightly_amount(purchase, settings.first_payday)) }}/fortnight</span></div>
+              <div class="progress my-2"><div class="progress-bar" style="width: {{ [pct, 100]|min }}%"></div></div>
+              <div class="small text-muted mb-2">{{ settings.currency_symbol }}{{ '%.2f'|format(purchase.amount_saved) }} saved of {{ settings.currency_symbol }}{{ '%.2f'|format(purchase.target_amount) }} · target {{ purchase.target_date }}</div>
+              <form class="d-flex gap-2" method="post" action="{{ url_for('main.add_purchase_saved', purchase_id=purchase.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input class="form-control form-control-sm" type="number" step="0.01" min="0.01" name="amount" placeholder="Add saved amount">
+                <button class="btn btn-outline-primary btn-sm">Add</button>
+              </form>
+              <form class="mt-2" method="post" action="{{ url_for('main.mark_purchase_purchased', purchase_id=purchase.id) }}" onsubmit="return confirm('Mark this planned purchase as purchased?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-outline-success btn-sm">Mark purchased</button>
+              </form>
+            </div>
+          {% endfor %}
+        {% else %}<p class="text-muted mb-0">No active planned purchases.</p>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

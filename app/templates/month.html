@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1>Monthly View</h1>
+  <div class="btn-group flex-wrap">
+    {% for m in range(1, 13) %}
+      <a class="btn btn-sm {{ 'btn-primary' if m == month else 'btn-outline-primary' }}" href="{{ url_for('main.month_view', year=year, month=m) }}">{{ m }}</a>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-4"><div class="card metric"><div class="card-body"><div class="text-muted">Total</div><div class="h3">{{ settings.currency_symbol }}{{ '%.2f'|format(total) }}</div></div></div></div>
+  <div class="col-md-4"><div class="card metric"><div class="card-body"><div class="text-muted">Paid</div><div class="h3">{{ settings.currency_symbol }}{{ '%.2f'|format(paid) }}</div></div></div></div>
+  <div class="col-md-4"><div class="card metric"><div class="card-body"><div class="text-muted">Unpaid</div><div class="h3">{{ settings.currency_symbol }}{{ '%.2f'|format(unpaid) }}</div></div></div></div>
+</div>
+
+<div class="card shadow-sm"><div class="card-body">
+<div class="table-responsive"><table class="table table-hover align-middle">
+  <thead><tr><th>Date</th><th>Bill</th><th>Category</th><th>Amount</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+  {% for item in occurrences %}
+  <tr>
+    <td>{{ item.due_date }}</td>
+    <td>{{ item.bill.name }}</td>
+    <td>{{ item.bill.category.name if item.bill.category else 'Uncategorised' }}</td>
+    <td>{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</td>
+    <td><span class="badge text-bg-{{ 'success' if item.status == 'Paid' else 'warning' if item.status == 'Skipped' else 'secondary' }}">{{ item.status }}</span></td>
+    <td class="text-end text-nowrap">
+      {% if item.status == 'Paid' %}
+      <form class="d-inline" method="post" action="{{ url_for('main.mark_occurrence_unpaid', occurrence_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-secondary btn-sm">Mark unpaid</button></form>
+      {% elif item.status == 'Skipped' %}
+      <form class="d-inline" method="post" action="{{ url_for('main.mark_occurrence_unpaid', occurrence_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-secondary btn-sm">Restore</button></form>
+      {% else %}
+      <form class="d-inline" method="post" action="{{ url_for('main.mark_occurrence_paid', occurrence_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-success btn-sm">Mark paid</button></form>
+      <form class="d-inline" method="post" action="{{ url_for('main.skip_occurrence', occurrence_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-secondary btn-sm">Skip</button></form>
+      {% endif %}
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="6" class="text-muted">No bills generated for this month.</td></tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+</div></div>
+{% endblock %}
