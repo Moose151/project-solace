@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="mb-1">Buckets</h1>
+    <div class="page-kicker">Define how household pay is split, then see the combined and per-person transfers for this pay cycle.</div>
+  </div>
+  <div class="action-bar">
+    <a class="btn btn-primary" href="{{ url_for('main.pay_split') }}">View Pay Split</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('main.income_sources') }}">Income Sources</a>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-3"><div class="card metric"><div class="card-body"><div class="metric-label">Household income</div><div class="metric-value">{{ settings.currency_symbol }}{{ '%.2f'|format(income_total) }}</div><div class="text-muted small">{{ cycle_start.strftime('%d %b') }} – {{ cycle_end.strftime('%d %b') }}</div></div></div></div>
+  <div class="col-md-3"><div class="card metric"><div class="card-body"><div class="metric-label">Bucket transfers</div><div class="metric-value">{{ settings.currency_symbol }}{{ '%.2f'|format(bucket_total) }}</div><div class="text-muted small">Combined household total</div></div></div></div>
+  <div class="col-md-3"><div class="card metric"><div class="card-body"><div class="metric-label">After buckets</div><div class="metric-value">{{ settings.currency_symbol }}{{ '%.2f'|format(remaining_after_buckets) }}</div><div class="text-muted small">Remaining this cycle</div></div></div></div>
+  <div class="col-md-3"><div class="card metric"><div class="card-body"><div class="metric-label">Active percentage</div><div class="metric-value">{{ '%.2f'|format(total_percentage) }}%</div><div class="text-muted small">Percentage-based buckets</div></div></div></div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+      <div>
+        <h2 class="h5 mb-1">Combined and individual contributions</h2>
+        <div class="text-muted small">This is the practical transfer view: what the household contributes in total, and what each person contributes from their own pay.</div>
+      </div>
+      <span class="badge badge-soft">Next payday {{ next_payday.strftime('%d %b %Y') }}</span>
+    </div>
+    {% if bucket_contribution_rows %}
+    <div class="table-responsive">
+      <table class="table table-clean align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Bucket</th>
+            <th>Type</th>
+            <th>Target</th>
+            <th>Combined</th>
+            {% for person in person_names %}<th>{{ person }}</th>{% endfor %}
+            <th>Note</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in bucket_contribution_rows %}
+          <tr>
+            <td class="fw-semibold">{{ row.bucket.name }}</td>
+            <td><span class="badge badge-soft">{{ row.bucket.bucket_type }}</span></td>
+            <td>{{ row.target_label }}</td>
+            <td class="contribution-cell">{{ settings.currency_symbol }}{{ '%.2f'|format(row.combined_amount) }}</td>
+            {% for person in row.people %}
+              <td class="contribution-cell">{{ settings.currency_symbol }}{{ '%.2f'|format(person.amount) }}{% if person.capped %} <span class="badge remainder-badge">Remainder</span>{% endif %}</td>
+            {% endfor %}
+            <td>{% if row.capped %}<span class="badge remainder-badge">Used remainder</span>{% elif row.bucket.cap_to_remaining %}<span class="badge badge-soft">Uses remainder</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th colspan="3">Total</th>
+            <th>{{ settings.currency_symbol }}{{ '%.2f'|format(bucket_total) }}</th>
+            {% for person in person_bucket_allocations %}<th>{{ settings.currency_symbol }}{{ '%.2f'|format(person.bucket_total) }}</th>{% endfor %}
+            <th></th>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    {% else %}
+      <p class="text-muted mb-0">No active buckets or pay-cycle income found yet.</p>
+    {% endif %}
+  </div>
+</div>
+
+{% if person_bucket_allocations %}
+<div class="row g-3 mb-4">
+  {% for person in person_bucket_allocations %}
+  <div class="col-lg-6">
+    <div class="card person-card h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start mb-3">
+          <div>
+            <h2 class="h5 mb-1">{{ person.person }}</h2>
+            <div class="text-muted small">Income this cycle: {{ settings.currency_symbol }}{{ '%.2f'|format(person.income_total) }}</div>
+          </div>
+          <div class="text-end">
+            <div class="fw-bold fs-5">{{ settings.currency_symbol }}{{ '%.2f'|format(person.bucket_total) }}</div>
+            <div class="text-muted small">total transfer</div>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm table-clean mb-0">
+            <thead><tr><th>Bucket</th><th>Transfer</th><th>% of pay</th></tr></thead>
+            <tbody>
+              {% for row in person.bucket_allocations %}
+              <tr>
+                <td>{{ row.bucket.name }}</td>
+                <td class="fw-semibold">{{ settings.currency_symbol }}{{ '%.2f'|format(row.rounded_amount) }}</td>
+                <td>{{ '%.2f'|format(row.percentage_of_income) }}%</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+            <tfoot><tr><th>Remaining</th><th>{{ settings.currency_symbol }}{{ '%.2f'|format(person.remaining) }}</th><th></th></tr></tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="card"><div class="card-body">
+      <h2 class="h5 mb-3">Add bucket</h2>
+      <form method="post">
+        {{ form.hidden_tag() }}
+        <div class="mb-3">{{ form.name.label(class="form-label") }}{{ form.name(class="form-control", placeholder="Bills, Savings, Shared spending...") }}</div>
+        <div class="row g-3">
+          <div class="col-12">{{ form.allocation_method.label(class="form-label") }}{{ form.allocation_method(class="form-select", id="allocation-method") }}<div class="form-text">Choose one amount type. Buckets cannot use both percentage and fixed amount.</div></div>
+          <div class="col-md-6 bucket-percentage-field">{{ form.percentage.label(class="form-label") }}{{ form.percentage(class="form-control", step="0.01", id="bucket-percentage") }}<div class="form-text">Each person contributes this percentage of their own pay.</div></div>
+          <div class="col-md-6 bucket-fixed-field">{{ form.fixed_amount.label(class="form-label") }}{{ form.fixed_amount(class="form-control", step="0.01", id="bucket-fixed") }}<div class="form-text">Split by each person's income share.</div></div>
+          <div class="col-md-6">{{ form.rounding_increment.label(class="form-label") }}{{ form.rounding_increment(class="form-select") }}</div>
+          <div class="col-md-6">{{ form.bucket_type.label(class="form-label") }}{{ form.bucket_type(class="form-select") }}</div>
+          <div class="col-md-6">{{ form.sort_order.label(class="form-label") }}{{ form.sort_order(class="form-control") }}</div>
+          <div class="col-md-6 d-flex align-items-end"><div class="form-check">{{ form.active(class="form-check-input") }}{{ form.active.label(class="form-check-label") }}</div></div>
+          <div class="col-12"><div class="form-check">{{ form.cap_to_remaining(class="form-check-input") }}{{ form.cap_to_remaining.label(class="form-check-label") }}<div class="form-text">Only one bucket can use this. Use it on the final flexible bucket, such as individual spending.</div></div></div>
+        </div>
+        <div class="mt-3">{{ form.notes.label(class="form-label") }}{{ form.notes(class="form-control", rows="2") }}</div>
+        <button class="btn btn-primary mt-3">Add bucket</button>
+      </form>
+    </div></div>
+  </div>
+  <div class="col-lg-7">
+    <div class="card"><div class="card-body">
+      <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap mb-3"><h2 class="h5 mb-0">Bucket rules</h2><span class="text-muted small">Active percentage total: {{ '%.2f'|format(total_percentage) }}%</span></div>
+      {% if buckets %}
+      <div class="table-responsive"><table class="table table-clean align-middle">
+        <thead><tr><th>Name</th><th>Type</th><th>Amount type</th><th>Target</th><th>Round</th><th>Remainder</th><th>Active</th><th></th></tr></thead>
+        <tbody>
+        {% for bucket in buckets %}
+        <tr>
+          <td class="fw-semibold">{{ bucket.name }}</td><td>{{ bucket.bucket_type }}</td>
+          <td>{% if bucket.fixed_amount is not none %}<span class="badge text-bg-light border">Fixed</span>{% else %}<span class="badge text-bg-light border">Percentage</span>{% endif %}</td>
+          <td>{% if bucket.fixed_amount is not none %}{{ settings.currency_symbol }}{{ '%.2f'|format(bucket.fixed_amount) }}{% else %}{{ '%.2f'|format(bucket.percentage) }}%{% endif %}</td>
+          <td>{{ settings.currency_symbol }}{{ bucket.rounding_increment }}</td><td>{% if bucket.cap_to_remaining %}<span class="remainder-pill">Uses remainder</span>{% else %}<span class="text-muted">—</span>{% endif %}</td><td>{{ 'Yes' if bucket.active else 'No' }}</td>
+          <td class="text-end"><a class="btn btn-outline-primary btn-sm" href="{{ url_for('main.edit_bucket', bucket_id=bucket.id) }}">Edit</a>
+            <form class="d-inline" method="post" action="{{ url_for('main.delete_bucket', bucket_id=bucket.id) }}" onsubmit="return confirm('Delete this bucket?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-danger btn-sm">Delete</button></form>
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table></div>
+      {% else %}<p class="text-muted mb-0">No buckets yet.</p>{% endif %}
+    </div></div>
+  </div>
+</div>
+
+<script>
+function updateBucketAmountFields() {
+  const method = document.getElementById('allocation-method')?.value;
+  const percentageWrap = document.querySelector('.bucket-percentage-field');
+  const fixedWrap = document.querySelector('.bucket-fixed-field');
+  const percentageInput = document.getElementById('bucket-percentage');
+  const fixedInput = document.getElementById('bucket-fixed');
+  if (!method || !percentageWrap || !fixedWrap) return;
+  if (method === 'fixed') {
+    percentageWrap.classList.add('d-none');
+    fixedWrap.classList.remove('d-none');
+    if (percentageInput) percentageInput.value = '';
+  } else {
+    fixedWrap.classList.add('d-none');
+    percentageWrap.classList.remove('d-none');
+    if (fixedInput) fixedInput.value = '';
+  }
+}
+document.getElementById('allocation-method')?.addEventListener('change', updateBucketAmountFields);
+updateBucketAmountFields();
+</script>
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="mb-4">{{ title }}</h1>
+<div class="card shadow-sm"><div class="card-body">
+  <form method="post">
+    {{ form.hidden_tag() }}
+    <div class="row g-3">
+      <div class="col-md-4">{{ form.owner_name.label(class="form-label") }}{{ form.owner_name(class="form-control") }}<div class="form-text">{{ form.owner_name.description }}</div></div>
+      <div class="col-md-4">{{ form.name.label(class="form-label") }}{{ form.name(class="form-control") }}</div>
+      <div class="col-md-2">{{ form.amount.label(class="form-label") }}{{ form.amount(class="form-control", step="0.01") }}</div>
+      <div class="col-md-2">{{ form.frequency.label(class="form-label") }}{{ form.frequency(class="form-select") }}</div>
+      <div class="col-md-4">{{ form.next_pay_date.label(class="form-label") }}{{ form.next_pay_date(class="form-control") }}<div class="form-text">{{ form.next_pay_date.description }}</div></div>
+      <div class="col-md-4 d-flex align-items-end"><div class="form-check">{{ form.active(class="form-check-input") }}{{ form.active.label(class="form-check-label") }}</div></div>
+      <div class="col-12">{{ form.notes.label(class="form-label") }}{{ form.notes(class="form-control", rows="3") }}</div>
+    </div>
+    <div class="mt-4"><button class="btn btn-primary">Save income source</button> <a class="btn btn-outline-secondary" href="{{ url_for('main.income_sources') }}">Cancel</a></div>
+  </form>
+</div></div>
+{% endblock %}

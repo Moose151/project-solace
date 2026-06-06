@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="mb-1">Dashboard</h1>
+    <div class="page-kicker">Current pay cycle: {{ cycle_start.strftime('%d %b %Y') }} – {{ cycle_end.strftime('%d %b %Y') }}</div>
+  </div>
+  <div class="action-bar">
+    <a href="{{ url_for('main.dashboard_layout') }}" class="btn btn-outline-secondary">Customise dashboard</a>
+    <a href="{{ url_for('main.calendar_current') }}" class="btn btn-outline-primary">Open calendar</a>
+    <a href="{{ url_for('main.pay_cycle') }}" class="btn btn-primary">Open pay cycle</a>
+  </div>
+</div>
+
+<div class="row g-3 dashboard-grid">
+{% for widget in dashboard_widgets %}
+  {% if widget.enabled %}
+    {% set should_render = True %}
+    {% if widget.widget_key == 'setup_checklist' and not show_setup %}{% set should_render = False %}{% endif %}
+    {% if widget.widget_key == 'overdue_bills' and not overdue %}{% set should_render = False %}{% endif %}
+    {% if should_render %}
+      {% set col_class = 'col-12' if widget.size == 'wide' else ('col-lg-6' if widget.size == 'medium' else 'col-md-6 col-xl-4') %}
+      <div class="{{ col_class }}">
+
+      {% if widget.widget_key == 'setup_checklist' %}
+        <div class="card shadow-sm setup-card subtle-card">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+              <div>
+                <h2 class="h5 mb-1">Finish setup</h2>
+                <p class="text-muted mb-0">Complete the core items needed for pay-cycle calculations. Planned purchases and balance snapshots are optional.</p>
+              </div>
+              <form method="post" action="{{ url_for('main.dismiss_setup_checklist') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-outline-secondary btn-sm">Dismiss</button>
+              </form>
+            </div>
+            <div class="row g-2">
+              {% for step in setup_steps %}
+              <div class="col-md-3">
+                <a class="setup-step d-block p-3 rounded text-decoration-none {{ 'done' if step.done else '' }}" href="{{ step.url }}">
+                  <span class="badge {{ 'text-bg-success' if step.done else 'text-bg-secondary' }} me-2">{{ 'Done' if step.done else 'To do' }}</span>{{ step.label }}
+                </a>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+      {% elif widget.widget_key == 'set_aside_summary' %}
+        <div class="card metric hero-metric h-100">
+          <div class="card-body">
+            <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
+              <div>
+                <div class="metric-label">Set aside this fortnight</div>
+                <div class="display-5 fw-semibold">{{ settings.currency_symbol }}{{ '%.2f'|format(total_set_aside) }}</div>
+                <div class="text-muted small">Next payday: {{ next_payday.strftime('%d %b %Y') }}</div>
+              </div>
+              <div class="summary-pills">
+                <div class="summary-pill"><span>Recurring bills</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(bill_fortnightly_total) }}</strong></div>
+                <div class="summary-pill"><span>Planned purchases</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(purchase_fortnightly_total) }}</strong></div>
+                <div class="summary-pill"><span>Buffer</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(buffer_amount) }}</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      {% elif widget.widget_key == 'income_summary' %}
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start gap-3">
+              <div>
+                <div class="metric-label">Household income this cycle</div>
+                <div class="h2 mb-1">{{ settings.currency_symbol }}{{ '%.2f'|format(income_total) }}</div>
+                <div class="text-muted small">Based on active income sources inside the current pay cycle.</div>
+              </div>
+              <a href="{{ url_for('main.income_sources') }}" class="btn btn-outline-primary btn-sm">Income</a>
+            </div>
+            <hr>
+            <div class="d-flex justify-content-between"><span class="text-muted">After bucket transfers</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(remaining_after_buckets) }}</strong></div>
+            <div class="d-flex justify-content-between"><span class="text-muted">Bucket total</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(total_bucket_amount) }}</strong></div>
+          </div>
+        </div>
+
+      {% elif widget.widget_key == 'bucket_summary' %}
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+              <div>
+                <div class="metric-label">Bucket summary</div>
+                <div class="h3 mb-0">{{ settings.currency_symbol }}{{ '%.2f'|format(total_bucket_amount) }}</div>
+              </div>
+              <a href="{{ url_for('main.pay_split') }}" class="btn btn-outline-primary btn-sm">Pay split</a>
+            </div>
+            <div class="mini-stat"><span>Bills required</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(bill_fortnightly_total) }}</strong></div>
+            <div class="mini-stat"><span>Bills bucket</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(bills_bucket_total) }}</strong></div>
+            <div class="mini-stat"><span>Bills + purchase buckets</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(bills_and_purchases_bucket_total) }}</strong></div>
+          </div>
+        </div>
+
+      {% elif widget.widget_key == 'per_person_contributions' %}
+        <div class="card h-100">
+          <div class="card-body">
+            <h2 class="h5 mb-3">Individual contributions this cycle</h2>
+            {% if person_bucket_allocations %}
+            <div class="table-responsive"><table class="table table-sm table-clean align-middle mb-0">
+              <thead><tr><th>Person</th><th>Income</th><th>Bills / planned buckets</th><th>Total buckets</th><th>Remaining</th></tr></thead>
+              <tbody>
+              {% for person in person_bucket_allocations %}
+              <tr>
+                <td class="fw-semibold">{{ person.person }}</td>
+                <td>{{ settings.currency_symbol }}{{ '%.2f'|format(person.income_total) }}</td>
+                <td>{{ settings.currency_symbol }}{{ '%.2f'|format(person.bills_bucket_total) }}</td>
+                <td>{{ settings.currency_symbol }}{{ '%.2f'|format(person.bucket_total) }}</td>
+                <td>{{ settings.currency_symbol }}{{ '%.2f'|format(person.remaining) }}</td>
+              </tr>
+              {% endfor %}
+              </tbody>
+            </table></div>
+            {% else %}<p class="text-muted mb-0">Add income sources with a person name to see individual contributions.</p>{% endif %}
+          </div>
+        </div>
+
+      {% elif widget.widget_key == 'due_before_next_payday' %}
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+              <div>
+                <h2 class="h5 mb-1">Due before next payday</h2>
+                <div class="text-muted small">Unpaid bills due by {{ next_payday.strftime('%d %b %Y') }}</div>
+              </div>
+              <div class="h5 mb-0">{{ settings.currency_symbol }}{{ '%.2f'|format(current_cycle_unpaid) }}</div>
+            </div>
+            {% if due_before_next_payday %}
+            <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+              <thead><tr><th>Date</th><th>Bill</th><th>Amount</th><th></th></tr></thead>
+              <tbody>
+              {% for item in due_before_next_payday %}
+                <tr>
+                  <td>{{ item.due_date }}</td><td>{{ item.bill.name }}</td><td>{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</td>
+                  <td class="text-end">
+                    <form class="d-inline" method="post" action="{{ url_for('main.mark_occurrence_paid', occurrence_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-success btn-sm">Paid</button></form>
+                    <form class="d-inline" method="post" action="{{ url_for('main.skip_occurrence', occurrence_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-secondary btn-sm">Skip</button></form>
+                  </td>
+                </tr>
+              {% endfor %}
+              </tbody>
+            </table></div>
+            {% else %}<p class="text-muted mb-0">No unpaid bills due before next payday.</p>{% endif %}
+          </div>
+        </div>
+
+      {% elif widget.widget_key == 'overdue_bills' %}
+        <div class="card border-danger h-100">
+          <div class="card-body">
+            <h2 class="h5 text-danger">Overdue unpaid bills</h2>
+            <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+              <thead><tr><th>Date</th><th>Bill</th><th>Amount</th><th></th></tr></thead>
+              <tbody>
+              {% for item in overdue %}
+              <tr>
+                <td>{{ item.due_date }}</td><td>{{ item.bill.name }}</td><td>{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</td>
+                <td class="text-end">
+                  <form class="d-inline" method="post" action="{{ url_for('main.mark_occurrence_paid', occurrence_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-success btn-sm">Mark paid</button></form>
+                  <form class="d-inline" method="post" action="{{ url_for('main.skip_occurrence', occurrence_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-secondary btn-sm">Skip</button></form>
+                </td>
+              </tr>
+              {% endfor %}
+              </tbody>
+            </table></div>
+          </div>
+        </div>
+
+      {% elif widget.widget_key == 'planned_purchases' %}
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-3"><h2 class="h5 mb-0">Active planned purchases</h2><a href="{{ url_for('main.new_purchase') }}" class="btn btn-outline-primary btn-sm">Add</a></div>
+            {% if purchases %}
+              {% for purchase in purchases %}
+                {% set pct = (purchase.amount_saved / purchase.target_amount * 100) if purchase.target_amount else 0 %}
+                <div class="purchase-card border rounded p-3 mb-3">
+                  <div class="d-flex justify-content-between gap-3"><strong>{{ purchase.name }}</strong><span>{{ settings.currency_symbol }}{{ '%.2f'|format(planned_purchase_fortnightly_amount(purchase, settings.first_payday)) }}/fortnight</span></div>
+                  <div class="progress my-2 progress-thin"><div class="progress-bar" style="width: {{ [pct, 100]|min }}%"></div></div>
+                  <div class="small text-muted mb-2">{{ settings.currency_symbol }}{{ '%.2f'|format(purchase.amount_saved) }} saved of {{ settings.currency_symbol }}{{ '%.2f'|format(purchase.target_amount) }} · target {{ purchase.target_date }}</div>
+                  <form class="d-flex gap-2" method="post" action="{{ url_for('main.add_purchase_saved', purchase_id=purchase.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input class="form-control form-control-sm" type="number" step="0.01" min="0.01" name="amount" placeholder="Add saved amount">
+                    <button class="btn btn-outline-primary btn-sm">Add</button>
+                  </form>
+                </div>
+              {% endfor %}
+            {% else %}<p class="text-muted mb-0">No active planned purchases.</p>{% endif %}
+          </div>
+        </div>
+
+      {% elif widget.widget_key == 'account_balance' %}
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start gap-3">
+              <div>
+                <div class="metric-label">Latest bills account balance</div>
+                {% if latest_balance %}
+                  <div class="h3 mb-1">{{ settings.currency_symbol }}{{ '%.2f'|format(latest_balance.balance) }}</div>
+                  <div class="text-muted small">Recorded {{ latest_balance.snapshot_date }}</div>
+                {% else %}
+                  <div class="h5 mb-1">No balance recorded</div>
+                  <div class="text-muted small">Optional manual balance snapshot.</div>
+                {% endif %}
+              </div>
+              <a class="btn btn-outline-primary btn-sm" href="{{ url_for('main.account_balance') }}">Update</a>
+            </div>
+            <hr>
+            <div class="mini-stat"><span>Unpaid before next payday</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(current_cycle_unpaid) }}</strong></div>
+            {% if latest_balance %}<div class="mini-stat"><span>Projected after these bills</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(projected_balance_after_cycle) }}</strong></div>{% endif %}
+          </div>
+        </div>
+
+      {% elif widget.widget_key == 'due_next_30_days' %}
+        <div class="card h-100">
+          <div class="card-body">
+            <h2 class="h5">Due in the next 30 days</h2>
+            {% if due_next_30_days %}
+            <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+              <thead><tr><th>Date</th><th>Bill</th><th>Amount</th><th>Status</th></tr></thead>
+              <tbody>
+              {% for item in due_next_30_days %}
+                <tr><td>{{ item.due_date }}</td><td>{{ item.bill.name }}</td><td>{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</td><td>{{ item.status }}</td></tr>
+              {% endfor %}
+              </tbody>
+            </table></div>
+            {% else %}<p class="text-muted mb-0">No unpaid bills due in the next 30 days.</p>{% endif %}
+          </div>
+        </div>
+
+      {% elif widget.widget_key == 'recurring_totals' %}
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="metric-label">Recurring totals</div>
+            <div class="mini-stat mt-3"><span>Monthly average</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(monthly_total) }}</strong></div>
+            <div class="mini-stat"><span>Annual recurring total</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(annual_total) }}</strong></div>
+          </div>
+        </div>
+      {% endif %}
+
+      </div>
+    {% endif %}
+  {% endif %}
+{% endfor %}
+</div>
+{% endblock %}

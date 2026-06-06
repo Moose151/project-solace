@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1>Recurring Bills</h1>
+  <a href="{{ url_for('main.new_bill') }}" class="btn btn-primary">Add bill</a>
+</div>
+<div class="card shadow-sm"><div class="card-body">
+<div class="table-responsive"><table class="table table-hover align-middle">
+  <thead><tr><th>Name</th><th>Frequency</th><th>Due</th><th>Amount</th><th>Annual</th><th>Per fortnight</th><th>Active</th><th></th></tr></thead>
+  <tbody>
+  {% for bill in bills %}
+    <tr>
+      <td>{{ bill.name }}</td><td>{{ bill.frequency }}</td><td>{{ bill.due_day }}{% if bill.due_month %}/{{ bill.due_month }}{% endif %}</td>
+      <td>{{ settings.currency_symbol }}{{ '%.2f'|format(bill.amount) }}</td>
+      <td>{{ settings.currency_symbol }}{{ '%.2f'|format(annual_cost(bill)) }}</td>
+      <td>{{ settings.currency_symbol }}{{ '%.2f'|format(fortnightly_bill_amount(bill)) }}</td>
+      <td>{{ 'Yes' if bill.active else 'No' }}</td>
+      <td class="text-end">
+        <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.edit_bill', bill_id=bill.id) }}">Edit</a>
+        <form class="d-inline" method="post" action="{{ url_for('main.delete_bill', bill_id=bill.id) }}" onsubmit="return confirm('Delete this bill?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-danger btn-sm">Delete</button></form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+</div></div>
+{% endblock %}

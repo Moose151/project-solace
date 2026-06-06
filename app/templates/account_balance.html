@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h1 class="mb-1">Bills Account Balance</h1>
+    <p class="text-muted mb-0">Optional manual balance snapshots. This is not transaction tracking.</p>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h5">Add balance snapshot</h2>
+        <form method="post">
+          {{ form.hidden_tag() }}
+          <div class="mb-3">{{ form.snapshot_date.label(class="form-label") }} {{ form.snapshot_date(class="form-control") }}</div>
+          <div class="mb-3">{{ form.balance.label(class="form-label") }} {{ form.balance(class="form-control") }}</div>
+          <div class="mb-3">{{ form.notes.label(class="form-label") }} {{ form.notes(class="form-control", rows=3) }}</div>
+          <button class="btn btn-primary">Save balance</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h5">Recent snapshots</h2>
+        {% if snapshots %}
+        <div class="table-responsive"><table class="table align-middle">
+          <thead><tr><th>Date</th><th>Balance</th><th>Notes</th></tr></thead>
+          <tbody>
+          {% for item in snapshots %}
+          <tr><td>{{ item.snapshot_date }}</td><td>{{ settings.currency_symbol }}{{ '%.2f'|format(item.balance) }}</td><td>{{ item.notes or '' }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table></div>
+        {% else %}<p class="text-muted mb-0">No balance snapshots yet.</p>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

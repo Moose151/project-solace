@@ -1,0 +1,436 @@
+:root {
+  --solace-radius: 1rem;
+  --solace-soft-shadow: 0 0.75rem 2.5rem rgba(15, 23, 42, 0.08);
+  --solace-card-border: rgba(148, 163, 184, 0.28);
+}
+
+body {
+  background:
+    radial-gradient(circle at top left, rgba(13, 110, 253, 0.08), transparent 34rem),
+    linear-gradient(180deg, rgba(248, 250, 252, 0.95), var(--bs-body-bg) 18rem);
+}
+
+.app-navbar {
+  background: linear-gradient(90deg, #111827, #1f2937);
+  box-shadow: 0 0.5rem 1.5rem rgba(15, 23, 42, 0.18);
+}
+.app-navbar .navbar-brand,
+.app-navbar .nav-link { color: rgba(255, 255, 255, 0.88); }
+.app-navbar .nav-link:hover,
+.app-navbar .nav-link:focus,
+.app-navbar .navbar-brand:hover { color: #fff; }
+.app-navbar .navbar-toggler { border-color: rgba(255, 255, 255, 0.25); }
+.app-navbar .navbar-toggler-icon { filter: invert(1) grayscale(1); }
+.brand-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.14);
+  font-weight: 700;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.page-kicker {
+  color: var(--bs-secondary-color);
+  font-size: 0.95rem;
+}
+.action-bar {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.card {
+  border-color: var(--solace-card-border);
+  border-radius: var(--solace-radius);
+  box-shadow: var(--solace-soft-shadow);
+}
+.card-header:first-child {
+  border-radius: var(--solace-radius) var(--solace-radius) 0 0;
+}
+.card-soft {
+  background: var(--bs-tertiary-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--solace-radius);
+}
+.metric { min-height: 100%; }
+.metric .metric-label {
+  color: var(--bs-secondary-color);
+  font-size: 0.86rem;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
+.metric .metric-value {
+  font-size: clamp(1.45rem, 2.5vw, 2rem);
+  font-weight: 750;
+  line-height: 1.15;
+}
+.hero-metric {
+  border-left: 0.45rem solid var(--bs-primary);
+}
+.setup-step {
+  border: 1px solid var(--bs-border-color);
+  color: inherit;
+  background: var(--bs-body-bg);
+}
+.setup-step.done { border-color: var(--bs-success); }
+.purchase-card { background: var(--bs-tertiary-bg); }
+.table td, .table th { vertical-align: middle; }
+.table-clean thead th {
+  color: var(--bs-secondary-color);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  border-bottom-width: 1px;
+}
+.badge-soft {
+  background: var(--bs-tertiary-bg);
+  color: var(--bs-body-color);
+  border: 1px solid var(--bs-border-color);
+}
+.contribution-cell {
+  font-weight: 700;
+  white-space: nowrap;
+}
+.person-card {
+  background: linear-gradient(180deg, var(--bs-body-bg), var(--bs-tertiary-bg));
+}
+.progress-thin { height: 0.55rem; }
+.toast-stack { position: relative; z-index: 2; }
+
+@media (max-width: 768px) {
+  .page-header { display: block; }
+  .action-bar { justify-content: flex-start; margin-top: 1rem; }
+}
+
+@media (max-width: 576px) {
+  h1 { font-size: 1.6rem; }
+  .display-5 { font-size: 2rem; }
+  .btn, .form-control, .form-select { min-height: 42px; }
+  .table-responsive table { min-width: 720px; }
+  .card-body { padding: 1rem; }
+}
+
+@media (prefers-color-scheme: dark) {
+  .theme-auto {
+    color-scheme: dark;
+    background: #121212;
+    color: #e9ecef;
+  }
+}
+
+[data-bs-theme="dark"] body,
+.theme-auto {
+  background:
+    radial-gradient(circle at top left, rgba(13, 110, 253, 0.16), transparent 34rem),
+    linear-gradient(180deg, #0f172a, var(--bs-body-bg) 18rem);
+}
+
+.remainder-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  background: rgba(13, 110, 253, 0.08);
+  color: var(--bs-primary-text-emphasis);
+  border: 1px solid rgba(13, 110, 253, 0.20);
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.income-pill {
+  background: rgba(25, 135, 84, 0.12);
+  color: var(--bs-success-text-emphasis);
+  border: 1px solid rgba(25, 135, 84, 0.25);
+}
+.bill-pill {
+  background: rgba(13, 110, 253, 0.10);
+  color: var(--bs-primary-text-emphasis);
+  border: 1px solid rgba(13, 110, 253, 0.20);
+}
+.status-badge {
+  border-radius: 999px;
+  border: 1px solid var(--bs-border-color);
+}
+.status-paid { background: rgba(25, 135, 84, 0.12); color: var(--bs-success-text-emphasis); }
+.status-skipped { background: rgba(108, 117, 125, 0.12); color: var(--bs-secondary-color); }
+.status-upcoming { background: rgba(255, 193, 7, 0.16); color: var(--bs-warning-text-emphasis); }
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: .5rem;
+}
+.calendar-head > div {
+  color: var(--bs-secondary-color);
+  font-size: .78rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  padding: 0 .25rem;
+}
+.calendar-day {
+  min-height: 8.5rem;
+  padding: .6rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: .85rem;
+  background: var(--bs-body-bg);
+  overflow: hidden;
+}
+.calendar-day.muted {
+  opacity: .45;
+  background: var(--bs-tertiary-bg);
+}
+.calendar-date {
+  font-weight: 700;
+  margin-bottom: .4rem;
+}
+.calendar-event {
+  border-radius: .65rem;
+  padding: .38rem .45rem;
+  margin-bottom: .35rem;
+  font-size: .78rem;
+  line-height: 1.2;
+  border: 1px solid transparent;
+}
+.calendar-event .event-title {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.calendar-event .event-meta {
+  opacity: .82;
+}
+.income-event {
+  background: rgba(25, 135, 84, 0.12);
+  border-color: rgba(25, 135, 84, 0.22);
+}
+.bill-event {
+  background: rgba(13, 110, 253, 0.10);
+  border-color: rgba(13, 110, 253, 0.20);
+}
+
+@media (max-width: 768px) {
+  .calendar-grid { gap: .35rem; }
+  .calendar-day { min-height: 7rem; padding: .45rem; }
+  .calendar-event { font-size: .72rem; padding: .3rem .35rem; }
+}
+
+@media (max-width: 576px) {
+  .calendar-card .card-body { padding: .75rem; }
+  .calendar-grid { grid-template-columns: repeat(7, minmax(4.3rem, 1fr)); overflow-x: auto; }
+}
+
+.remainder-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: .18rem .55rem;
+  border-radius: 999px;
+  background: var(--bs-tertiary-bg);
+  border: 1px solid var(--bs-border-color);
+  color: var(--bs-secondary-color);
+  font-size: .78rem;
+  font-weight: 600;
+}
+
+.dashboard-grid > [class*="col-"] { display: flex; }
+.dashboard-grid > [class*="col-"] > .card { width: 100%; }
+.subtle-card { border-style: dashed; }
+.summary-pills {
+  min-width: min(100%, 22rem);
+  display: grid;
+  gap: .5rem;
+}
+.summary-pill,
+.mini-stat {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  padding: .65rem .75rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: .75rem;
+  background: var(--bs-tertiary-bg);
+}
+.summary-pill span,
+.mini-stat span { color: var(--bs-secondary-color); }
+.dashboard-order-input { max-width: 6rem; }
+
+/* v12 dark-mode polish --------------------------------------------------
+   The earlier dark background used a large vertical gradient on the body.
+   On pages with shorter content this could make the background appear to
+   restart or change abruptly after cards/sections. These rules give dark
+   mode one stable page background and keep cards visually consistent. */
+html[data-bs-theme="dark"],
+html[data-bs-theme="dark"] body {
+  min-height: 100%;
+  background-color: #111827;
+}
+
+html[data-bs-theme="dark"] body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(37, 99, 235, 0.10), transparent 28rem),
+    linear-gradient(180deg, #111827 0%, #18202a 42%, #1f2428 100%);
+  background-attachment: fixed;
+  color: #e5e7eb;
+}
+
+html[data-bs-theme="dark"] .app-navbar {
+  background: rgba(17, 24, 39, 0.94);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+  box-shadow: 0 0.75rem 1.75rem rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(8px);
+}
+
+html[data-bs-theme="dark"] .card,
+html[data-bs-theme="dark"] .card-soft,
+html[data-bs-theme="dark"] .setup-step,
+html[data-bs-theme="dark"] .calendar-day,
+html[data-bs-theme="dark"] .person-card,
+html[data-bs-theme="dark"] .purchase-card,
+html[data-bs-theme="dark"] .list-group-item,
+html[data-bs-theme="dark"] .modal-content,
+html[data-bs-theme="dark"] .dropdown-menu {
+  background: rgba(31, 41, 55, 0.92);
+  border-color: rgba(148, 163, 184, 0.22);
+  color: #e5e7eb;
+  box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.18);
+}
+
+html[data-bs-theme="dark"] .card-header,
+html[data-bs-theme="dark"] .card-footer {
+  background: rgba(17, 24, 39, 0.36);
+  border-color: rgba(148, 163, 184, 0.18);
+}
+
+html[data-bs-theme="dark"] .table {
+  --bs-table-bg: transparent;
+  --bs-table-color: #e5e7eb;
+  --bs-table-border-color: rgba(148, 163, 184, 0.18);
+  --bs-table-striped-bg: rgba(255, 255, 255, 0.025);
+  --bs-table-hover-bg: rgba(255, 255, 255, 0.04);
+}
+
+html[data-bs-theme="dark"] .text-muted,
+html[data-bs-theme="dark"] .page-kicker,
+html[data-bs-theme="dark"] .metric .metric-label,
+html[data-bs-theme="dark"] .table-clean thead th,
+html[data-bs-theme="dark"] .calendar-head > div {
+  color: #aab4c3 !important;
+}
+
+html[data-bs-theme="dark"] .form-control,
+html[data-bs-theme="dark"] .form-select,
+html[data-bs-theme="dark"] .input-group-text {
+  background-color: rgba(17, 24, 39, 0.78);
+  border-color: rgba(148, 163, 184, 0.24);
+  color: #e5e7eb;
+}
+
+html[data-bs-theme="dark"] .form-control:focus,
+html[data-bs-theme="dark"] .form-select:focus {
+  background-color: rgba(17, 24, 39, 0.92);
+  border-color: rgba(59, 130, 246, 0.70);
+  box-shadow: 0 0 0 .25rem rgba(13, 110, 253, 0.16);
+  color: #f9fafb;
+}
+
+html[data-bs-theme="dark"] .btn-outline-primary {
+  border-color: rgba(96, 165, 250, 0.72);
+  color: #93c5fd;
+}
+
+html[data-bs-theme="dark"] .btn-outline-primary:hover,
+html[data-bs-theme="dark"] .btn-outline-primary:focus {
+  background: rgba(37, 99, 235, 0.24);
+  color: #dbeafe;
+}
+
+html[data-bs-theme="dark"] .btn-outline-secondary {
+  border-color: rgba(148, 163, 184, 0.42);
+  color: #cbd5e1;
+}
+
+html[data-bs-theme="dark"] .alert-success {
+  background: rgba(22, 101, 52, 0.28);
+  border-color: rgba(34, 197, 94, 0.28);
+  color: #bbf7d0;
+}
+
+html[data-bs-theme="dark"] .alert-warning {
+  background: rgba(113, 63, 18, 0.28);
+  border-color: rgba(245, 158, 11, 0.26);
+  color: #fde68a;
+}
+
+html[data-bs-theme="dark"] .badge-soft,
+html[data-bs-theme="dark"] .remainder-pill,
+html[data-bs-theme="dark"] .status-badge {
+  background: rgba(17, 24, 39, 0.62);
+  border-color: rgba(148, 163, 184, 0.24);
+  color: #dbe4ef;
+}
+
+html[data-bs-theme="dark"] .remainder-badge {
+  background: rgba(37, 99, 235, 0.16);
+  border-color: rgba(96, 165, 250, 0.25);
+  color: #bfdbfe;
+}
+
+html[data-bs-theme="dark"] .income-event,
+html[data-bs-theme="dark"] .income-pill {
+  background: rgba(34, 197, 94, 0.14);
+  border-color: rgba(34, 197, 94, 0.24);
+  color: #bbf7d0;
+}
+
+html[data-bs-theme="dark"] .bill-event,
+html[data-bs-theme="dark"] .bill-pill {
+  background: rgba(59, 130, 246, 0.14);
+  border-color: rgba(96, 165, 250, 0.24);
+  color: #bfdbfe;
+}
+
+html[data-bs-theme="dark"] .calendar-day.muted {
+  background: rgba(17, 24, 39, 0.54);
+  opacity: 0.62;
+}
+
+html[data-bs-theme="dark"] .hero-metric {
+  border-left-color: #60a5fa;
+}
+
+html[data-bs-theme="dark"] hr {
+  border-color: rgba(148, 163, 184, 0.18);
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-bs-theme="auto"],
+  html[data-bs-theme="auto"] body,
+  html.theme-auto,
+  html.theme-auto body {
+    min-height: 100%;
+    background-color: #111827;
+  }
+
+  html[data-bs-theme="auto"] body,
+  html.theme-auto body {
+    min-height: 100vh;
+    background:
+      radial-gradient(circle at 0% 0%, rgba(37, 99, 235, 0.10), transparent 28rem),
+      linear-gradient(180deg, #111827 0%, #18202a 42%, #1f2428 100%);
+    background-attachment: fixed;
+    color: #e5e7eb;
+  }
+}

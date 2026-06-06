@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div><h1 class="mb-1">Income Sources</h1><div class="text-muted">Expected household income used for bucket calculations.</div></div>
+  <a class="btn btn-primary" href="{{ url_for('main.new_income') }}">Add income source</a>
+</div>
+<div class="card shadow-sm">
+  <div class="card-body">
+    {% if income_sources %}
+    <div class="table-responsive"><table class="table align-middle">
+      <thead><tr><th>Person</th><th>Name</th><th>Frequency</th><th>Next pay date</th><th>Amount</th><th>Active</th><th></th></tr></thead>
+      <tbody>
+      {% for income in income_sources %}
+      <tr>
+        <td>{{ income.owner_name }}</td>
+        <td>{{ income.name }}</td>
+        <td>{{ income.frequency }}</td>
+        <td>{{ income.next_pay_date }}</td>
+        <td>{{ settings.currency_symbol }}{{ '%.2f'|format(income.amount) }}</td>
+        <td>{{ 'Yes' if income.active else 'No' }}</td>
+        <td class="text-end">
+          <a class="btn btn-outline-primary btn-sm" href="{{ url_for('main.edit_income', income_id=income.id) }}">Edit</a>
+          <form class="d-inline" method="post" action="{{ url_for('main.delete_income', income_id=income.id) }}" onsubmit="return confirm('Delete this income source?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-outline-danger btn-sm">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}
+    <p class="text-muted mb-0">No income sources yet. Add each fortnightly household pay so Solace can calculate buckets.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

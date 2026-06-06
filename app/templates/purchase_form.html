@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="mb-3">{{ title }}</h1>
+<form method="post" class="card shadow-sm"><div class="card-body row g-3">
+  {{ form.hidden_tag() }}
+  <div class="col-md-6">{{ form.name.label(class="form-label") }} {{ form.name(class="form-control") }}</div>
+  <div class="col-md-3">{{ form.target_amount.label(class="form-label") }} {{ form.target_amount(class="form-control") }}</div>
+  <div class="col-md-3">{{ form.amount_saved.label(class="form-label") }} {{ form.amount_saved(class="form-control") }}</div>
+  <div class="col-md-3">{{ form.target_date.label(class="form-label") }} {{ form.target_date(class="form-control") }}</div>
+  <div class="col-md-3">{{ form.category_id.label(class="form-label") }} {{ form.category_id(class="form-select") }}</div>
+  <div class="col-md-3">{{ form.new_category_name.label(class="form-label") }} {{ form.new_category_name(class="form-control") }}<div class="form-text">{{ form.new_category_name.description }}</div></div>
+  <div class="col-md-3">{{ form.priority.label(class="form-label") }} {{ form.priority(class="form-select") }}</div>
+  <div class="col-md-3">{{ form.status.label(class="form-label") }} {{ form.status(class="form-select") }}</div>
+  <div class="col-12">{{ form.notes.label(class="form-label") }} {{ form.notes(class="form-control", rows="3") }}</div>
+  <div class="col-12"><button class="btn btn-primary">Save</button> <a href="{{ url_for('main.purchases') }}" class="btn btn-outline-secondary">Cancel</a></div>
+</div></form>
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div><h1 class="mb-1">Pay Split</h1><div class="text-muted">{{ cycle_start.strftime('%d %b %Y') }} – {{ cycle_end.strftime('%d %b %Y') }} · next payday {{ next_payday.strftime('%d %b %Y') }}</div></div>
+  <div><a class="btn btn-outline-primary" href="{{ url_for('main.income_sources') }}">Income</a> <a class="btn btn-outline-primary" href="{{ url_for('main.buckets') }}">Buckets</a></div>
+</div>
+<div class="row g-3 mb-4">
+  <div class="col-md-3"><div class="card metric"><div class="card-body"><div class="text-muted">Household income</div><div class="h3">{{ settings.currency_symbol }}{{ '%.2f'|format(income_total) }}</div></div></div></div>
+  <div class="col-md-3"><div class="card metric"><div class="card-body"><div class="text-muted">Fortnightly bills</div><div class="h3">{{ settings.currency_symbol }}{{ '%.2f'|format(recurring_average) }}</div></div></div></div>
+  <div class="col-md-3"><div class="card metric"><div class="card-body"><div class="text-muted">Bills + purchase buckets</div><div class="h3">{{ settings.currency_symbol }}{{ '%.2f'|format(bills_bucket_total) }}</div></div></div></div>
+  <div class="col-md-3"><div class="card metric"><div class="card-body"><div class="text-muted">After buckets</div><div class="h3">{{ settings.currency_symbol }}{{ '%.2f'|format(remaining) }}</div></div></div></div>
+</div>
+{% if shortfall > 0 %}
+<div class="alert alert-warning">Your Bills/Planned purchases buckets are short by {{ settings.currency_symbol }}{{ '%.2f'|format(shortfall) }} compared with the Project Solace required set-aside amount.</div>
+{% else %}
+<div class="alert alert-success">Your Bills/Planned purchases buckets cover the current required set-aside amount.</div>
+{% endif %}
+
+<div class="card shadow-sm mb-4"><div class="card-body"><h2 class="h5">Individual pay splits</h2>
+  {% if person_bucket_allocations %}
+  <div class="row g-3">
+    {% for person in person_bucket_allocations %}
+    <div class="col-lg-6">
+      <div class="border rounded p-3 h-100">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div><h3 class="h6 mb-1">{{ person.person }}</h3><div class="text-muted small">Income this cycle: {{ settings.currency_symbol }}{{ '%.2f'|format(person.income_total) }}</div></div>
+          <div class="text-end"><div class="fw-semibold">{{ settings.currency_symbol }}{{ '%.2f'|format(person.bucket_total) }}</div><div class="text-muted small">total buckets</div></div>
+        </div>
+        <div class="table-responsive"><table class="table table-sm mb-0">
+          <thead><tr><th>Bucket</th><th>Target</th><th>Transfer</th></tr></thead>
+          <tbody>
+          {% for row in person.bucket_allocations %}
+          <tr><td>{{ row.bucket.name }}</td><td>{{ row.target_label }}</td><td class="fw-semibold">{{ settings.currency_symbol }}{{ '%.2f'|format(row.rounded_amount) }}{% if row.capped %} <span class="badge remainder-badge">Remainder</span>{% endif %}</td></tr>
+          {% endfor %}
+          </tbody>
+          <tfoot><tr><th colspan="2">Remaining</th><th>{{ settings.currency_symbol }}{{ '%.2f'|format(person.remaining) }}</th></tr></tfoot>
+        </table></div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}<p class="text-muted mb-0">No income sources fall in this pay cycle.</p>{% endif %}
+</div></div>
+
+<div class="row g-4">
+  <div class="col-lg-5"><div class="card shadow-sm"><div class="card-body"><h2 class="h5">Income this cycle</h2>
+    {% if income_items %}<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Date</th><th>Person</th><th>Source</th><th>Amount</th></tr></thead><tbody>{% for item in income_items %}<tr><td>{{ item.date.strftime('%d %b %Y') }}</td><td>{{ item.source.owner_name }}</td><td>{{ item.source.name }}</td><td>{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="text-muted mb-0">No income sources fall in this pay cycle.</p>{% endif %}
+  </div></div></div>
+  <div class="col-lg-7"><div class="card shadow-sm"><div class="card-body"><h2 class="h5">Combined household bucket transfers</h2>
+    {% if bucket_allocations %}<div class="table-responsive"><table class="table align-middle"><thead><tr><th>Bucket</th><th>Type</th><th>Target</th><th>Rounded transfer</th><th>% of income</th><th>Note</th></tr></thead><tbody>{% for row in bucket_allocations %}<tr><td>{{ row.bucket.name }}</td><td>{{ row.bucket.bucket_type }}</td><td>{{ row.target_label }}</td><td class="fw-semibold">{{ settings.currency_symbol }}{{ '%.2f'|format(row.rounded_amount) }}</td><td>{{ '%.2f'|format(row.percentage_of_income) }}%</td><td>{% if row.capped %}<span class="badge remainder-badge">Used remainder</span>{% elif row.bucket.cap_to_remaining %}<span class="badge badge-soft">Uses remainder</span>{% endif %}</td></tr>{% endfor %}</tbody><tfoot><tr><th colspan="3">Total</th><th>{{ settings.currency_symbol }}{{ '%.2f'|format(bucket_total) }}</th><th></th><th></th></tr></tfoot></table></div>{% else %}<p class="text-muted mb-0">No active buckets yet.</p>{% endif %}
+  </div></div></div>
+</div>
+<div class="card shadow-sm mt-4"><div class="card-body"><h2 class="h5">Required set-aside breakdown</h2><div class="row"><div class="col-md-4">Recurring bills: <strong>{{ settings.currency_symbol }}{{ '%.2f'|format(recurring_average) }}</strong></div><div class="col-md-4">Planned purchases: <strong>{{ settings.currency_symbol }}{{ '%.2f'|format(purchase_average) }}</strong></div><div class="col-md-4">Buffer: <strong>{{ settings.currency_symbol }}{{ '%.2f'|format(settings.default_buffer_amount) }}</strong></div></div></div></div>
+{% endblock %}
