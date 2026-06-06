@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_helpers.html" import help_tip %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h1>Planned Purchases</h1>
@@ -6,7 +7,7 @@
 </div>
 <div class="card shadow-sm"><div class="card-body">
 <div class="table-responsive"><table class="table table-hover align-middle">
-  <thead><tr><th>Name</th><th>Target date</th><th>Target</th><th>Saved</th><th>Remaining</th><th>Per fortnight</th><th>Status</th><th>Quick add</th><th></th></tr></thead>
+  <thead><tr><th>Name</th><th>Priority {{ help_tip("Priority sorts active planned purchases. It does not change the required per-fortnight calculation.") }}</th><th>Target date</th><th>Target</th><th>Saved</th><th>Remaining</th><th>Per fortnight</th><th>Status</th><th>Quick add</th><th></th></tr></thead>
   <tbody>
   {% for purchase in purchases %}
     {% set remaining = purchase.target_amount - purchase.amount_saved %}
@@ -18,6 +19,7 @@
           <div class="progress mt-2" style="height: 8px;"><div class="progress-bar" style="width: {{ [pct, 100]|min }}%"></div></div>
         {% endif %}
       </td>
+      <td><span class="badge text-bg-{{ 'danger' if purchase.priority == 'High' else 'warning' if purchase.priority == 'Medium' else 'secondary' }}">{{ purchase.priority }}</span></td>
       <td>{{ purchase.target_date }}</td>
       <td>{{ settings.currency_symbol }}{{ '%.2f'|format(purchase.target_amount) }}</td>
       <td>{{ settings.currency_symbol }}{{ '%.2f'|format(purchase.amount_saved) }}</td>
@@ -44,7 +46,7 @@
       </td>
     </tr>
   {% else %}
-    <tr><td colspan="9" class="text-muted">No planned purchases yet.</td></tr>
+    <tr><td colspan="10" class="text-muted">No planned purchases yet.</td></tr>
   {% endfor %}
   </tbody>
 </table></div>

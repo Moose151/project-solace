@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_helpers.html" import help_tip %}
 {% block content %}
 <div class="page-header">
   <div>
@@ -21,7 +22,7 @@
               <th>Show</th>
               <th>Widget</th>
               <th>Description</th>
-              <th>Order</th>
+              <th>Order {{ help_tip("Lower numbers appear earlier on the dashboard. Use gaps like 10, 20, 30 so you can insert widgets later without renumbering everything.") }}</th>
               <th>Size</th>
             </tr>
           </thead>

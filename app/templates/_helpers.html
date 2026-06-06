@@ -1,0 +1,5 @@
+{% macro help_tip(text, important=False) -%}
+  {% if important or show_help_tips %}
+    <span class="help-tip" tabindex="0" role="button" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ text }}">?</span>
+  {% endif %}
+{%- endmacro %}

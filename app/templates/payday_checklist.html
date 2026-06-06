@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_helpers.html" import help_tip %}
 {% block content %}
 <div class="page-header">
   <div>
@@ -33,16 +34,44 @@
       </div>
       <div class="checklist-stack">
       {% for item in checklist_items %}
-        <label class="checklist-row">
+        <div class="checklist-row">
           <input class="form-check-input" type="checkbox" name="completed_{{ item.id }}" {% if item.completed %}checked{% endif %}>
           <span class="flex-grow-1">{{ item.label }}{% if item.completed_at %}<br><small class="text-muted">Completed {{ item.completed_at }}</small>{% endif %}</span>
           {% if item.amount %}<strong>{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</strong>{% endif %}
-        </label>
+          {% if item.item_key.startswith('transfer_') %}
+            <button type="submit" form="hide-item-{{ item.id }}" class="btn btn-link btn-sm text-muted p-0 ms-2">Hide if automatic</button>
+          {% endif %}
+        </div>
       {% endfor %}
       </div>
     </div></form>
   </div>
 </div>
+
+{% for item in checklist_items %}
+  {% if item.item_key.startswith('transfer_') %}
+  <form id="hide-item-{{ item.id }}" method="post" action="{{ url_for('main.hide_payday_checklist_item', item_id=item.id) }}" onsubmit="return confirm('Hide this automatic transfer from future payday checklists?');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  </form>
+  {% endif %}
+{% endfor %}
+
+{% if hidden_preferences %}
+<div class="card mt-4"><div class="card-body">
+  <h2 class="h5">Hidden automatic transfers {{ help_tip('These items are not shown in the active payday checklist. Restore them if the transfer stops being automatic.') }}</h2>
+  <div class="list-group list-group-flush">
+    {% for pref in hidden_preferences %}
+    <div class="list-group-item px-0 d-flex justify-content-between align-items-center gap-3">
+      <span>{{ pref.label }}</span>
+      <form method="post" action="{{ url_for('main.unhide_payday_checklist_item', item_key=pref.item_key) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-outline-secondary btn-sm">Restore</button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+</div></div>
+{% endif %}
 
 <div class="card mt-4"><div class="card-body">
   <h2 class="h5">Per-person transfer summary</h2>

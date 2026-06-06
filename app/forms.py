@@ -20,6 +20,7 @@ class SettingsForm(FlaskForm):
     default_buffer_amount = FloatField("Default buffer amount", validators=[Optional(), NumberRange(min=0)])
     currency_symbol = StringField("Currency symbol", validators=[DataRequired(), Length(max=5)])
     theme = SelectField("Theme", choices=[("Light", "Light"), ("Dark", "Dark"), ("Auto", "Auto")])
+    show_help_tips = BooleanField("Show help tips", default=True, description="Shows small ? icons beside optional guidance. Important warnings are still shown even when this is off.")
     submit = SubmitField("Save settings")
 
 

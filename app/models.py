@@ -28,6 +28,7 @@ class Settings(db.Model):
     currency_symbol = db.Column(db.String(5), nullable=False, default="$")
     theme = db.Column(db.String(20), nullable=False, default="Light")  # Light, Dark, Auto
     setup_checklist_dismissed = db.Column(db.Boolean, default=False)
+    show_help_tips = db.Column(db.Boolean, default=True)
 
 
 class Category(db.Model):
@@ -133,6 +134,14 @@ class PaydayChecklistItem(db.Model):
     completed = db.Column(db.Boolean, default=False)
     completed_at = db.Column(db.String(25), nullable=True)
     sort_order = db.Column(db.Integer, nullable=False, default=0)
+
+
+class PaydayChecklistPreference(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    item_key = db.Column(db.String(120), unique=True, nullable=False)
+    label = db.Column(db.String(255), nullable=False)
+    hidden = db.Column(db.Boolean, default=False)
+    reason = db.Column(db.String(120), nullable=True)
 
 
 class AuditLog(db.Model):

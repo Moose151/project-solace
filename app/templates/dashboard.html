@@ -20,7 +20,7 @@
     {% if widget.widget_key == 'overdue_bills' and not overdue %}{% set should_render = False %}{% endif %}
     {% if should_render %}
       {% set col_class = 'col-12' if widget.size == 'wide' else ('col-lg-6' if widget.size == 'medium' else 'col-md-6 col-xl-4') %}
-      <div class="{{ col_class }}">
+      <div class="{{ col_class }}" id="widget-{{ widget.widget_key }}">
 
       {% if widget.widget_key == 'setup_checklist' %}
         <div class="card shadow-sm setup-card subtle-card">
@@ -144,7 +144,7 @@
         </div></div>
 
       {% elif widget.widget_key == 'due_before_next_payday' %}
-        <div class="card h-100">
+        <div class="card h-100" id="due-before-next-payday">
           <div class="card-body">
             <div class="d-flex justify-content-between align-items-start mb-3">
               <div>
@@ -161,8 +161,8 @@
                 <tr>
                   <td>{{ item.due_date }}</td><td>{{ item.bill.name }}</td><td>{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</td>
                   <td class="text-end">
-                    <form class="d-inline" method="post" action="{{ url_for('main.mark_occurrence_paid', occurrence_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-success btn-sm">Paid</button></form>
-                    <form class="d-inline" method="post" action="{{ url_for('main.skip_occurrence', occurrence_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-secondary btn-sm">Skip</button></form>
+                    <form class="d-inline" method="post" action="{{ url_for('main.mark_occurrence_paid', occurrence_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="return_to" value="{{ url_for('main.dashboard') }}#due-before-next-payday"><button class="btn btn-success btn-sm">Paid</button></form>
+                    <form class="d-inline" method="post" action="{{ url_for('main.skip_occurrence', occurrence_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="return_to" value="{{ url_for('main.dashboard') }}#due-before-next-payday"><button class="btn btn-outline-secondary btn-sm">Skip</button></form>
                   </td>
                 </tr>
               {% endfor %}
@@ -173,7 +173,7 @@
         </div>
 
       {% elif widget.widget_key == 'overdue_bills' %}
-        <div class="card border-danger h-100">
+        <div class="card border-danger h-100" id="overdue-bills">
           <div class="card-body">
             <h2 class="h5 text-danger">Overdue unpaid bills</h2>
             <div class="table-responsive"><table class="table table-sm align-middle mb-0">
@@ -183,8 +183,8 @@
               <tr>
                 <td>{{ item.due_date }}</td><td>{{ item.bill.name }}</td><td>{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</td>
                 <td class="text-end">
-                  <form class="d-inline" method="post" action="{{ url_for('main.mark_occurrence_paid', occurrence_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-success btn-sm">Mark paid</button></form>
-                  <form class="d-inline" method="post" action="{{ url_for('main.skip_occurrence', occurrence_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-secondary btn-sm">Skip</button></form>
+                  <form class="d-inline" method="post" action="{{ url_for('main.mark_occurrence_paid', occurrence_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="return_to" value="{{ url_for('main.dashboard') }}#overdue-bills"><button class="btn btn-success btn-sm">Mark paid</button></form>
+                  <form class="d-inline" method="post" action="{{ url_for('main.skip_occurrence', occurrence_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="return_to" value="{{ url_for('main.dashboard') }}#overdue-bills"><button class="btn btn-outline-secondary btn-sm">Skip</button></form>
                 </td>
               </tr>
               {% endfor %}

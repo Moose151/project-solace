@@ -11,7 +11,7 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request,
 from flask_login import login_user, logout_user, login_required
 from werkzeug.security import check_password_hash
 
-from .models import db, User, Settings, Category, RecurringBill, BillOccurrence, PlannedPurchase, AccountBalanceSnapshot, IncomeSource, Bucket, DashboardWidget, PaydayChecklistItem, AuditLog, NotificationSetting
+from .models import db, User, Settings, Category, RecurringBill, BillOccurrence, PlannedPurchase, AccountBalanceSnapshot, IncomeSource, Bucket, DashboardWidget, PaydayChecklistItem, PaydayChecklistPreference, AuditLog, NotificationSetting
 from .forms import LoginForm, SettingsForm, CategoryForm, RecurringBillForm, PlannedPurchaseForm, AccountBalanceForm, IncomeSourceForm, BucketForm, NotificationSettingsForm
 from .budget_engine import (
     annual_cost, fortnightly_bill_amount, generate_bill_dates,
@@ -230,9 +230,14 @@ def parse_bill_import_rows(rows):
     return parsed_rows, errors
 
 
-def ensure_payday_checklist_items(settings, cycle_start, income_items, person_bucket_allocations, bucket_allocations):
-    """Create checklist items for the current pay cycle if they do not already exist."""
+def ensure_payday_checklist_items(settings, cycle_start, income_items, person_bucket_allocations, bucket_allocations, include_hidden=False):
+    """Create checklist items for the current pay cycle if they do not already exist.
+
+    Transfer items can be hidden using PaydayChecklistPreference. This is for
+    automatic transfers that do not need to appear in the active payday list.
+    """
     existing = {item.item_key: item for item in PaydayChecklistItem.query.filter_by(cycle_start=cycle_start.isoformat()).all()}
+    hidden_preferences = {pref.item_key for pref in PaydayChecklistPreference.query.filter_by(hidden=True).all()}
     required = []
     order = 10
     required.append(("confirm_income", "Confirm all expected income has arrived", None, order)); order += 10
@@ -257,7 +262,11 @@ def ensure_payday_checklist_items(settings, cycle_start, income_items, person_bu
                 sort_order=sort_order,
             ))
     db.session.commit()
-    return PaydayChecklistItem.query.filter_by(cycle_start=cycle_start.isoformat()).order_by(PaydayChecklistItem.sort_order).all()
+    query = PaydayChecklistItem.query.filter_by(cycle_start=cycle_start.isoformat())
+    items = query.order_by(PaydayChecklistItem.sort_order).all()
+    if include_hidden:
+        return items
+    return [item for item in items if item.item_key not in hidden_preferences]
 
 def get_dashboard_widgets():
     """Return dashboard widgets in display order and a quick enabled lookup."""
@@ -286,7 +295,8 @@ def get_dashboard_widgets():
 def inject_globals():
     settings = get_settings()
     theme_mode = settings.theme if settings and settings.theme in ["Light", "Dark", "Auto"] else "Light"
-    return {"settings": settings, "money": money, "theme_mode": theme_mode}
+    show_help_tips = True if not settings else bool(getattr(settings, "show_help_tips", True))
+    return {"settings": settings, "money": money, "theme_mode": theme_mode, "show_help_tips": show_help_tips}
 
 
 @main.route("/health")
@@ -566,7 +576,9 @@ def delete_bill(bill_id):
 @main.route("/purchases")
 @login_required
 def purchases():
-    rows = PlannedPurchase.query.order_by(PlannedPurchase.target_date).all()
+    priority_order = {"High": 0, "Medium": 1, "Low": 2}
+    rows = PlannedPurchase.query.all()
+    rows = sorted(rows, key=lambda p: (p.status != "Active", priority_order.get(p.priority, 1), p.target_date or "9999-12-31", p.name.lower()))
     settings = get_settings()
     return render_template("purchases.html", purchases=rows, planned_purchase_fortnightly_amount=planned_purchase_fortnightly_amount, first_payday=settings.first_payday)
 
@@ -746,7 +758,7 @@ def mark_occurrence_paid(occurrence_id):
     audit("mark_bill_paid", "BillOccurrence", occurrence.bill.name if occurrence.bill else "Bill", occurrence.due_date)
     db.session.commit()
     flash("Bill marked as paid.", "success")
-    return redirect(request.referrer or url_for("main.dashboard"))
+    return redirect(request.form.get("return_to") or request.referrer or url_for("main.dashboard"))
 
 
 @main.route("/occurrences/<int:occurrence_id>/unpaid", methods=["POST"])
@@ -758,7 +770,7 @@ def mark_occurrence_unpaid(occurrence_id):
     audit("mark_bill_unpaid", "BillOccurrence", occurrence.bill.name if occurrence.bill else "Bill", occurrence.due_date)
     db.session.commit()
     flash("Bill marked as unpaid.", "success")
-    return redirect(request.referrer or url_for("main.dashboard"))
+    return redirect(request.form.get("return_to") or request.referrer or url_for("main.dashboard"))
 
 
 @main.route("/occurrences/<int:occurrence_id>/skip", methods=["POST"])
@@ -770,7 +782,7 @@ def skip_occurrence(occurrence_id):
     audit("skip_bill", "BillOccurrence", occurrence.bill.name if occurrence.bill else "Bill", occurrence.due_date)
     db.session.commit()
     flash("Bill occurrence skipped.", "success")
-    return redirect(request.referrer or url_for("main.dashboard"))
+    return redirect(request.form.get("return_to") or request.referrer or url_for("main.dashboard"))
 
 
 @main.route("/pay-cycle")
@@ -1035,6 +1047,7 @@ def payday_checklist():
     bucket_allocations = calculate_bucket_allocations(buckets, income_total)
     person_bucket_allocations = calculate_person_bucket_allocations(income_items, buckets, income_total)
     checklist_items = ensure_payday_checklist_items(settings, cycle_start, income_items, person_bucket_allocations, bucket_allocations)
+    hidden_preferences = PaydayChecklistPreference.query.filter_by(hidden=True).order_by(PaydayChecklistPreference.label).all()
 
     if request.method == "POST":
         for item in checklist_items:
@@ -1059,7 +1072,41 @@ def payday_checklist():
         bucket_allocations=bucket_allocations,
         person_bucket_allocations=person_bucket_allocations,
         checklist_items=checklist_items,
+        hidden_preferences=hidden_preferences,
     )
+
+
+@main.route("/payday-checklist/items/<int:item_id>/hide", methods=["POST"])
+@login_required
+def hide_payday_checklist_item(item_id):
+    item = db.session.get(PaydayChecklistItem, item_id)
+    if not item:
+        flash("Checklist item not found.", "warning")
+        return redirect(url_for("main.payday_checklist"))
+    pref = PaydayChecklistPreference.query.filter_by(item_key=item.item_key).first()
+    if not pref:
+        pref = PaydayChecklistPreference(item_key=item.item_key, label=item.label, hidden=True, reason="automatic_transfer")
+        db.session.add(pref)
+    else:
+        pref.label = item.label
+        pref.hidden = True
+        pref.reason = "automatic_transfer"
+    audit("hide_payday_checklist_item", "PaydayChecklistPreference", item.label, "Hidden from future payday checklists")
+    db.session.commit()
+    flash("Checklist item hidden. You can restore it from the hidden automatic transfers section.", "success")
+    return redirect(url_for("main.payday_checklist"))
+
+
+@main.route("/payday-checklist/preferences/<path:item_key>/unhide", methods=["POST"])
+@login_required
+def unhide_payday_checklist_item(item_key):
+    pref = PaydayChecklistPreference.query.filter_by(item_key=item_key).first()
+    if pref:
+        pref.hidden = False
+        audit("unhide_payday_checklist_item", "PaydayChecklistPreference", pref.label, "Restored to payday checklists")
+        db.session.commit()
+        flash("Checklist item restored.", "success")
+    return redirect(url_for("main.payday_checklist"))
 
 
 @main.route("/backup-restore", methods=["GET", "POST"])
