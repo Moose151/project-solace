@@ -1,34 +1,65 @@
 # Project Solace
 
-Self-hosted household set-aside planner for recurring bills, planned purchases, income sources, and bucket-based pay allocation.
+Project Solace is a self-hosted household set-aside planner for recurring bills, planned purchases, income sources, and bucket-based payday transfers.
 
-## v10.1 notes
+It is intentionally not a full transaction-tracking budget app. Its main job is to answer: **how much should each person transfer into each bucket this pay cycle?**
 
-This build fixes the v10 issues reported during testing:
+## Current feature set
 
-- Dashboard setup panel can now be dismissed. There is a POST button and a fallback dismiss link.
-- Calendar is now a top-level navigation item and also available from the dashboard.
-- Monthly view supports Calendar and List modes and shows both bills and income.
-- Buckets now explicitly use either Percentage of income or Fixed household amount.
-- Fixed household buckets are split between people by income share, not 50/50.
-- Only one bucket can use the remainder cap.
+- Recurring bills
+- Planned purchases
+- Fortnightly pay-cycle calculations
+- Income sources by person
+- Bucket allocations by percentage or fixed household amount
+- Per-person contribution breakdowns
+- Calendar and list views for monthly bills/income
+- Modular dashboard
+- Payday checklist
+- Bills bucket health indicator
+- Import preview for recurring bills
+- Backup and restore page
+- Audit log
+- Notification settings scaffold
+- Dark mode
+- Docker deployment
 
-## Local run
+## Local development
 
 ```bash
-cd ~/Documents/project-solace
+cd project-solace
+python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 python run.py
 ```
 
-Open http://localhost:5000
+Open:
 
-## Docker run
+```text
+http://localhost:5000
+```
+
+Default development login:
+
+```text
+Username: admin
+Password: admin
+```
+
+## Docker
 
 ```bash
 cp .env.example .env
+nano .env
 docker compose up -d --build
 ```
 
-Open http://localhost:5055
+Open:
+
+```text
+http://localhost:5055
+```
+
+## Backups
+
+Use **Manage → Backup & Restore** before applying updates. The SQLite database ZIP is the restore-capable backup. CSV/XLSX exports are useful for review, but the database ZIP is the full backup.

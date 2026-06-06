@@ -5,7 +5,7 @@ from flask_wtf.csrf import CSRFProtect
 from werkzeug.security import generate_password_hash
 from sqlalchemy import text
 
-from .models import db, User, Settings, Category, Bucket, IncomeSource, DashboardWidget
+from .models import db, User, Settings, Category, Bucket, IncomeSource, DashboardWidget, NotificationSetting
 
 login_manager = LoginManager()
 login_manager.login_view = "main.login"
@@ -38,6 +38,7 @@ def create_app():
         apply_lightweight_migrations()
         seed_default_data()
         seed_dashboard_widgets()
+        seed_notification_settings()
 
     return app
 
@@ -104,6 +105,8 @@ def seed_dashboard_widgets():
         ("income_summary", "Income summary", True, 20, "medium", "Expected household income and remaining amount after bucket transfers."),
         ("bucket_summary", "Bucket summary", True, 30, "medium", "Combined household bucket totals."),
         ("per_person_contributions", "Individual contributions", True, 40, "wide", "How each person contributes to the buckets this cycle."),
+        ("bills_bucket_health", "Bills bucket health", True, 45, "medium", "Shows whether the bills bucket covers the fortnightly bills requirement."),
+        ("payday_checklist", "Payday checklist", True, 48, "medium", "Quick link to the transfer checklist for payday."),
         ("due_before_next_payday", "Due before next payday", True, 50, "wide", "Upcoming bills due before the next payday."),
         ("overdue_bills", "Overdue bills", True, 60, "wide", "Unpaid bills with due dates before today."),
         ("planned_purchases", "Planned purchases", False, 70, "medium", "Active planned purchases and quick-add saved amount."),
@@ -123,6 +126,18 @@ def seed_dashboard_widgets():
                 description=description,
             ))
 
+
+
+def seed_notification_settings():
+    """Create the single notification settings row."""
+    if not NotificationSetting.query.first():
+        db.session.add(NotificationSetting(
+            enabled=False,
+            dashboard_reminders=True,
+            due_soon_days=3,
+            provider="None",
+        ))
+        db.session.commit()
 
 def seed_default_data():
     """Create the first admin, default settings, and starter categories."""

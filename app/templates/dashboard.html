@@ -121,6 +121,28 @@
           </div>
         </div>
 
+      {% elif widget.widget_key == 'bills_bucket_health' %}
+        <div class="card h-100 {% if bills_bucket_status == 'short' %}border-warning{% endif %}">
+          <div class="card-body">
+            <div class="metric-label">Bills bucket health</div>
+            <div class="h3 mb-2 {% if bills_bucket_status == 'short' %}text-warning{% else %}text-success{% endif %}">
+              {% if bills_bucket_status == 'short' %}Short by {{ settings.currency_symbol }}{{ '%.2f'|format(-bills_bucket_delta) }}{% else %}Covered by {{ settings.currency_symbol }}{{ '%.2f'|format(bills_bucket_delta) }}{% endif %}
+            </div>
+            <div class="mini-stat"><span>Fortnightly bills required</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(bill_fortnightly_total) }}</strong></div>
+            <div class="mini-stat"><span>Bills bucket contribution</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(bills_bucket_total) }}</strong></div>
+            <div class="small text-muted mt-2">This compares the recurring bill set-aside requirement with the bucket marked as Bills.</div>
+          </div>
+        </div>
+
+      {% elif widget.widget_key == 'payday_checklist' %}
+        <div class="card h-100"><div class="card-body">
+          <div class="d-flex justify-content-between align-items-start gap-3">
+            <div><div class="metric-label">Payday checklist</div><div class="h3 mb-1">{{ checklist_completed }}/{{ checklist_total }}</div><div class="text-muted small">Items completed for this pay cycle.</div></div>
+            <a href="{{ url_for('main.payday_checklist') }}" class="btn btn-outline-primary btn-sm">Open</a>
+          </div>
+          <div class="progress progress-thin mt-3"><div class="progress-bar" style="width: {{ (checklist_completed / checklist_total * 100) if checklist_total else 0 }}%"></div></div>
+        </div></div>
+
       {% elif widget.widget_key == 'due_before_next_payday' %}
         <div class="card h-100">
           <div class="card-body">

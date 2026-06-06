@@ -124,3 +124,14 @@ class BucketForm(FlaskForm):
     sort_order = IntegerField("Sort order", validators=[Optional()], default=0)
     notes = TextAreaField("Notes", validators=[Optional()])
     submit = SubmitField("Save bucket")
+
+
+class NotificationSettingsForm(FlaskForm):
+    enabled = BooleanField("Enable external notifications")
+    dashboard_reminders = BooleanField("Show dashboard reminders", default=True)
+    due_soon_days = IntegerField("Due-soon warning days", validators=[DataRequired(), NumberRange(min=1, max=60)], default=3)
+    provider = SelectField("Notification provider", choices=[("None", "None"), ("ntfy", "ntfy"), ("webhook", "Gotify / generic webhook")])
+    webhook_url = StringField("Webhook / ntfy URL", validators=[Optional(), Length(max=500)])
+    token = StringField("Token", validators=[Optional(), Length(max=255)])
+    notes = TextAreaField("Notes", validators=[Optional()])
+    submit = SubmitField("Save notification settings")

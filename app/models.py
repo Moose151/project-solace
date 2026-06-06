@@ -122,3 +122,34 @@ class DashboardWidget(db.Model):
     sort_order = db.Column(db.Integer, nullable=False, default=0)
     size = db.Column(db.String(20), nullable=False, default="medium")  # small, medium, wide
     description = db.Column(db.String(255), nullable=True)
+
+
+class PaydayChecklistItem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    cycle_start = db.Column(db.String(10), nullable=False)
+    item_key = db.Column(db.String(120), nullable=False)
+    label = db.Column(db.String(255), nullable=False)
+    amount = db.Column(db.Float, nullable=True)
+    completed = db.Column(db.Boolean, default=False)
+    completed_at = db.Column(db.String(25), nullable=True)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+
+
+class AuditLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    created_at = db.Column(db.String(25), nullable=False)
+    action = db.Column(db.String(80), nullable=False)
+    entity_type = db.Column(db.String(80), nullable=True)
+    entity_name = db.Column(db.String(160), nullable=True)
+    details = db.Column(db.Text, nullable=True)
+
+
+class NotificationSetting(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    enabled = db.Column(db.Boolean, default=False)
+    dashboard_reminders = db.Column(db.Boolean, default=True)
+    due_soon_days = db.Column(db.Integer, nullable=False, default=3)
+    provider = db.Column(db.String(30), nullable=False, default="None")  # None, ntfy, Gotify/Webhook
+    webhook_url = db.Column(db.String(500), nullable=True)
+    token = db.Column(db.String(255), nullable=True)
+    notes = db.Column(db.Text, nullable=True)

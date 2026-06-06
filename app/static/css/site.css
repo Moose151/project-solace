@@ -434,3 +434,36 @@ html[data-bs-theme="dark"] hr {
     color: #e5e7eb;
   }
 }
+
+/* v13 payday workflow additions */
+.checklist-stack {
+  display: grid;
+  gap: .75rem;
+}
+.checklist-row {
+  display: flex;
+  align-items: flex-start;
+  gap: .85rem;
+  padding: .9rem 1rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 1rem;
+  background: var(--bs-body-bg);
+}
+.checklist-row:hover {
+  border-color: rgba(13, 110, 253, .45);
+}
+.soft-panel {
+  border: 1px solid var(--bs-border-color);
+  border-radius: 1rem;
+  padding: 1rem;
+  background: rgba(var(--bs-body-bg-rgb), .55);
+}
+.mini-stat.total {
+  border-top: 1px solid var(--bs-border-color);
+  margin-top: .5rem;
+  padding-top: .65rem;
+}
+[data-bs-theme="dark"] .checklist-row,
+[data-bs-theme="dark"] .soft-panel {
+  background: rgba(255, 255, 255, .035);
+}

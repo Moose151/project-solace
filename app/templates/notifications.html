@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header"><div><h1 class="mb-1">Notifications</h1><div class="page-kicker">Lightweight reminder settings. External delivery can be wired to ntfy/Gotify later.</div></div></div>
+<form method="post" class="card"><div class="card-body row g-3">
+  {{ form.hidden_tag() }}
+  <div class="col-md-6"><div class="form-check">{{ form.dashboard_reminders(class="form-check-input") }} {{ form.dashboard_reminders.label(class="form-check-label") }}</div><div class="form-text">Shows reminder-style warnings inside Project Solace.</div></div>
+  <div class="col-md-6"><div class="form-check">{{ form.enabled(class="form-check-input") }} {{ form.enabled.label(class="form-check-label") }}</div><div class="form-text">Stores external notification settings for later ntfy/Gotify use.</div></div>
+  <div class="col-md-4">{{ form.due_soon_days.label(class="form-label") }} {{ form.due_soon_days(class="form-control") }}</div>
+  <div class="col-md-4">{{ form.provider.label(class="form-label") }} {{ form.provider(class="form-select") }}</div>
+  <div class="col-md-8">{{ form.webhook_url.label(class="form-label") }} {{ form.webhook_url(class="form-control") }}</div>
+  <div class="col-md-4">{{ form.token.label(class="form-label") }} {{ form.token(class="form-control") }}</div>
+  <div class="col-12">{{ form.notes.label(class="form-label") }} {{ form.notes(class="form-control", rows="3") }}</div>
+  <div class="col-12"><button class="btn btn-primary">Save notification settings</button></div>
+</div></form>
+{% endblock %}

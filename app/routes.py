@@ -7,12 +7,12 @@ from calendar import Calendar, month_name
 from datetime import date, datetime, timedelta
 from zipfile import ZipFile, ZIP_DEFLATED
 
-from flask import Blueprint, render_template, redirect, url_for, flash, request, Response, send_file, current_app
+from flask import Blueprint, render_template, redirect, url_for, flash, request, Response, send_file, current_app, session
 from flask_login import login_user, logout_user, login_required
 from werkzeug.security import check_password_hash
 
-from .models import db, User, Settings, Category, RecurringBill, BillOccurrence, PlannedPurchase, AccountBalanceSnapshot, IncomeSource, Bucket, DashboardWidget
-from .forms import LoginForm, SettingsForm, CategoryForm, RecurringBillForm, PlannedPurchaseForm, AccountBalanceForm, IncomeSourceForm, BucketForm
+from .models import db, User, Settings, Category, RecurringBill, BillOccurrence, PlannedPurchase, AccountBalanceSnapshot, IncomeSource, Bucket, DashboardWidget, PaydayChecklistItem, AuditLog, NotificationSetting
+from .forms import LoginForm, SettingsForm, CategoryForm, RecurringBillForm, PlannedPurchaseForm, AccountBalanceForm, IncomeSourceForm, BucketForm, NotificationSettingsForm
 from .budget_engine import (
     annual_cost, fortnightly_bill_amount, generate_bill_dates,
     planned_purchase_fortnightly_amount, current_pay_cycle, money, parse_date, income_for_cycle,
@@ -152,6 +152,113 @@ def get_or_create_category(name, category_type="Bill"):
     return category
 
 
+
+def audit(action, entity_type=None, entity_name=None, details=None):
+    """Record a lightweight audit event for important user actions."""
+    try:
+        db.session.add(AuditLog(
+            created_at=datetime.now().isoformat(timespec="seconds"),
+            action=action,
+            entity_type=entity_type,
+            entity_name=entity_name,
+            details=details,
+        ))
+    except Exception:
+        # Audit logging should never block the main workflow.
+        pass
+
+
+def get_database_path():
+    """Return the SQLite database path from the configured SQLAlchemy URI."""
+    uri = current_app.config["SQLALCHEMY_DATABASE_URI"]
+    return uri.replace("sqlite:///", "") if uri.startswith("sqlite:///") else uri
+
+
+def parse_bill_import_rows(rows):
+    """Convert uploaded rows into a preview with validation before committing."""
+    parsed_rows = []
+    errors = 0
+    allowed_frequencies = {"Weekly", "Fortnightly", "Monthly", "Quarterly", "Six-monthly", "Yearly"}
+    for index, row in enumerate(rows, start=2):
+        preview = {"source_row": index, "errors": []}
+        try:
+            name = str(pick(row, "name", "bill", "bill_name")).strip()
+            if not name:
+                preview["errors"].append("Missing name")
+            amount = float(pick(row, "amount", "cost", default=0))
+            if amount <= 0:
+                preview["errors"].append("Amount must be greater than 0")
+            frequency = str(pick(row, "frequency", default="Monthly")).strip().title()
+            if frequency == "Six Monthly":
+                frequency = "Six-monthly"
+            if frequency not in allowed_frequencies:
+                preview["errors"].append(f"Unsupported frequency: {frequency}")
+            due_day = int(float(pick(row, "due_day", "day", "due", default=1)))
+            if due_day < 1 or due_day > 31:
+                preview["errors"].append("Due day must be 1-31")
+            due_month_raw = pick(row, "due_month", "month", default="")
+            due_month = int(float(due_month_raw)) if due_month_raw not in [None, ""] else None
+            if due_month is not None and (due_month < 1 or due_month > 12):
+                preview["errors"].append("Due month must be 1-12")
+            start_date = normalise_date_string(pick(row, "start_date", "start", default=f"{get_settings().budget_year}-01-01"))
+            end_value = pick(row, "end_date", "end", default="")
+            end_date = normalise_date_string(end_value) if end_value else None
+            category_name = str(pick(row, "category", default="")).strip()
+            active = str(pick(row, "active", default="yes")).strip().lower() not in ["no", "false", "0"]
+            autopay = str(pick(row, "autopay", "auto_pay", default="no")).strip().lower() in ["yes", "true", "1"]
+            include = str(pick(row, "include_in_set_aside", "include", default="yes")).strip().lower() not in ["no", "false", "0"]
+            preview.update({
+                "name": name,
+                "amount": amount,
+                "frequency": frequency,
+                "due_day": due_day,
+                "due_month": due_month,
+                "start_date": start_date,
+                "end_date": end_date,
+                "category": category_name,
+                "active": active,
+                "autopay": autopay,
+                "account_name": str(pick(row, "account_name", "account", default="")).strip(),
+                "include_in_set_aside": include,
+                "notes": str(pick(row, "notes", default="")).strip(),
+            })
+        except Exception as exc:
+            preview["errors"].append(str(exc))
+        if preview["errors"]:
+            errors += 1
+        parsed_rows.append(preview)
+    return parsed_rows, errors
+
+
+def ensure_payday_checklist_items(settings, cycle_start, income_items, person_bucket_allocations, bucket_allocations):
+    """Create checklist items for the current pay cycle if they do not already exist."""
+    existing = {item.item_key: item for item in PaydayChecklistItem.query.filter_by(cycle_start=cycle_start.isoformat()).all()}
+    required = []
+    order = 10
+    required.append(("confirm_income", "Confirm all expected income has arrived", None, order)); order += 10
+    for person in person_bucket_allocations:
+        for row in person.get("bucket_allocations", []):
+            amount = money(row["rounded_amount"])
+            if amount <= 0:
+                continue
+            key = f"transfer_{person['person']}_{row['bucket'].id}".lower().replace(" ", "_")
+            label = f"{person['person']}: transfer {settings.currency_symbol}{amount:.2f} to {row['bucket'].name}"
+            required.append((key, label, amount, order)); order += 10
+    required.append(("review_due_bills", "Review bills due before next payday", None, order)); order += 10
+    required.append(("record_balance", "Optional: record the bills/set-aside account balance", None, order))
+    for key, label, amount, sort_order in required:
+        if key not in existing:
+            db.session.add(PaydayChecklistItem(
+                cycle_start=cycle_start.isoformat(),
+                item_key=key,
+                label=label,
+                amount=amount,
+                completed=False,
+                sort_order=sort_order,
+            ))
+    db.session.commit()
+    return PaydayChecklistItem.query.filter_by(cycle_start=cycle_start.isoformat()).order_by(PaydayChecklistItem.sort_order).all()
+
 def get_dashboard_widgets():
     """Return dashboard widgets in display order and a quick enabled lookup."""
     widgets = DashboardWidget.query.order_by(DashboardWidget.sort_order, DashboardWidget.title).all()
@@ -163,6 +270,8 @@ def get_dashboard_widgets():
             ("income_summary", "Income summary", True, 20, "medium"),
             ("bucket_summary", "Bucket summary", True, 30, "medium"),
             ("per_person_contributions", "Individual contributions", True, 40, "wide"),
+            ("bills_bucket_health", "Bills bucket health", True, 45, "medium"),
+            ("payday_checklist", "Payday checklist", True, 48, "medium"),
             ("due_before_next_payday", "Due before next payday", True, 50, "wide"),
         ]
         for key, title, enabled, sort_order, size in defaults:
@@ -228,6 +337,14 @@ def dashboard():
     remaining_after_buckets = money(income_total - total_bucket_amount)
     bills_bucket_total = money(sum(row["rounded_amount"] for row in bucket_allocations if row["bucket"].bucket_type == "Bills"))
     bills_and_purchases_bucket_total = money(sum(row["rounded_amount"] for row in bucket_allocations if row["bucket"].bucket_type in ["Bills", "Planned purchases"]))
+    bills_bucket_delta = money(bills_bucket_total - bill_fortnightly_total)
+    bills_bucket_status = "covered" if bills_bucket_delta >= 0 else "short"
+
+    checklist_items = ensure_payday_checklist_items(settings, cycle_start, income_items, person_bucket_allocations, bucket_allocations)
+    checklist_completed = sum(1 for item in checklist_items if item.completed)
+    checklist_total = len(checklist_items)
+
+    notifications = NotificationSetting.query.first()
 
     due_before_next_payday = BillOccurrence.query.filter(
         BillOccurrence.due_date >= today.isoformat(),
@@ -292,6 +409,12 @@ def dashboard():
         remaining_after_buckets=remaining_after_buckets,
         bills_bucket_total=bills_bucket_total,
         bills_and_purchases_bucket_total=bills_and_purchases_bucket_total,
+        bills_bucket_delta=bills_bucket_delta,
+        bills_bucket_status=bills_bucket_status,
+        checklist_items=checklist_items,
+        checklist_completed=checklist_completed,
+        checklist_total=checklist_total,
+        notifications=notifications,
         person_bucket_allocations=person_bucket_allocations,
         dashboard_widgets=dashboard_widgets,
         enabled_widgets=enabled_widgets,
@@ -341,6 +464,8 @@ def reset_dashboard_layout():
         ("income_summary", "Income summary", True, 20, "medium", "Expected household income and remaining amount after bucket transfers."),
         ("bucket_summary", "Bucket summary", True, 30, "medium", "Combined household bucket totals."),
         ("per_person_contributions", "Individual contributions", True, 40, "wide", "How each person contributes to the buckets this cycle."),
+        ("bills_bucket_health", "Bills bucket health", True, 45, "medium", "Shows whether the bills bucket covers the fortnightly bills requirement."),
+        ("payday_checklist", "Payday checklist", True, 48, "medium", "Quick link to the transfer checklist for payday."),
         ("due_before_next_payday", "Due before next payday", True, 50, "wide", "Upcoming bills due before the next payday."),
         ("overdue_bills", "Overdue bills", True, 60, "wide", "Unpaid bills with due dates before today."),
         ("planned_purchases", "Planned purchases", False, 70, "medium", "Active planned purchases and quick-add saved amount."),
@@ -397,6 +522,7 @@ def new_bill():
         db.session.add(bill)
         db.session.flush()
         regenerate_bill_occurrences(bill, scope="all_unpaid")
+        audit("add_bill", "RecurringBill", bill.name, f"Amount: {bill.amount}; frequency: {bill.frequency}")
         db.session.commit()
         flash("Bill added.", "success")
         return redirect(url_for("main.bills"))
@@ -419,6 +545,7 @@ def edit_bill(bill_id):
         new_category = get_or_create_category(form.new_category_name.data, "Bill")
         bill.category_id = new_category.id if new_category else (form.category_id.data or None)
         regenerate_bill_occurrences(bill, scope=scope)
+        audit("edit_bill", "RecurringBill", bill.name, f"Occurrence scope: {scope}")
         db.session.commit()
         flash("Bill updated.", "success")
         return redirect(url_for("main.bills"))
@@ -429,6 +556,7 @@ def edit_bill(bill_id):
 @login_required
 def delete_bill(bill_id):
     bill = db.session.get(RecurringBill, bill_id)
+    audit("delete_bill", "RecurringBill", bill.name if bill else "Unknown", "Deleted recurring bill")
     db.session.delete(bill)
     db.session.commit()
     flash("Bill deleted.", "success")
@@ -615,6 +743,7 @@ def mark_occurrence_paid(occurrence_id):
     occurrence = db.session.get(BillOccurrence, occurrence_id)
     occurrence.status = "Paid"
     occurrence.paid_date = date.today().isoformat()
+    audit("mark_bill_paid", "BillOccurrence", occurrence.bill.name if occurrence.bill else "Bill", occurrence.due_date)
     db.session.commit()
     flash("Bill marked as paid.", "success")
     return redirect(request.referrer or url_for("main.dashboard"))
@@ -626,6 +755,7 @@ def mark_occurrence_unpaid(occurrence_id):
     occurrence = db.session.get(BillOccurrence, occurrence_id)
     occurrence.status = "Upcoming"
     occurrence.paid_date = None
+    audit("mark_bill_unpaid", "BillOccurrence", occurrence.bill.name if occurrence.bill else "Bill", occurrence.due_date)
     db.session.commit()
     flash("Bill marked as unpaid.", "success")
     return redirect(request.referrer or url_for("main.dashboard"))
@@ -637,6 +767,7 @@ def skip_occurrence(occurrence_id):
     occurrence = db.session.get(BillOccurrence, occurrence_id)
     occurrence.status = "Skipped"
     occurrence.paid_date = None
+    audit("skip_bill", "BillOccurrence", occurrence.bill.name if occurrence.bill else "Bill", occurrence.due_date)
     db.session.commit()
     flash("Bill occurrence skipped.", "success")
     return redirect(request.referrer or url_for("main.dashboard"))
@@ -892,6 +1023,119 @@ def account_balance():
     return render_template("account_balance.html", form=form, snapshots=rows)
 
 
+
+@main.route("/payday-checklist", methods=["GET", "POST"])
+@login_required
+def payday_checklist():
+    settings = get_settings()
+    cycle_start, cycle_end, next_payday = current_pay_cycle(settings.first_payday)
+    income_sources = IncomeSource.query.filter_by(active=True).order_by(IncomeSource.next_pay_date, IncomeSource.name).all()
+    income_items, income_total = income_for_cycle(income_sources, cycle_start, cycle_end)
+    buckets = Bucket.query.filter_by(active=True).order_by(Bucket.sort_order, Bucket.name).all()
+    bucket_allocations = calculate_bucket_allocations(buckets, income_total)
+    person_bucket_allocations = calculate_person_bucket_allocations(income_items, buckets, income_total)
+    checklist_items = ensure_payday_checklist_items(settings, cycle_start, income_items, person_bucket_allocations, bucket_allocations)
+
+    if request.method == "POST":
+        for item in checklist_items:
+            completed = request.form.get(f"completed_{item.id}") == "on"
+            if completed and not item.completed:
+                item.completed_at = datetime.now().isoformat(timespec="seconds")
+            elif not completed:
+                item.completed_at = None
+            item.completed = completed
+        audit("update_payday_checklist", "PaydayChecklist", cycle_start.isoformat(), "Updated payday checklist")
+        db.session.commit()
+        flash("Payday checklist updated.", "success")
+        return redirect(url_for("main.payday_checklist"))
+
+    return render_template(
+        "payday_checklist.html",
+        cycle_start=cycle_start,
+        cycle_end=cycle_end,
+        next_payday=next_payday,
+        income_items=income_items,
+        income_total=income_total,
+        bucket_allocations=bucket_allocations,
+        person_bucket_allocations=person_bucket_allocations,
+        checklist_items=checklist_items,
+    )
+
+
+@main.route("/backup-restore", methods=["GET", "POST"])
+@login_required
+def backup_restore():
+    db_path = get_database_path()
+    last_backup = None
+    backup_dir = os.path.join(current_app.instance_path, "backups")
+    if os.path.isdir(backup_dir):
+        backups = sorted([name for name in os.listdir(backup_dir) if name.endswith(".db")], reverse=True)
+        last_backup = backups[0] if backups else None
+
+    if request.method == "POST":
+        upload = request.files.get("restore_file")
+        confirm = request.form.get("confirm_restore") == "RESTORE"
+        if not confirm:
+            flash("Type RESTORE to confirm database restore.", "warning")
+            return redirect(url_for("main.backup_restore"))
+        if not upload or not upload.filename:
+            flash("Choose a .db or .zip backup file.", "warning")
+            return redirect(url_for("main.backup_restore"))
+        try:
+            os.makedirs(backup_dir, exist_ok=True)
+            safety_backup = os.path.join(backup_dir, f"pre-restore-{datetime.now().strftime('%Y%m%d-%H%M%S')}.db")
+            if os.path.exists(db_path):
+                shutil.copy2(db_path, safety_backup)
+            raw = upload.read()
+            restore_tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
+            restore_tmp.close()
+            if upload.filename.lower().endswith(".zip"):
+                with ZipFile(io.BytesIO(raw), "r") as zipf:
+                    db_names = [name for name in zipf.namelist() if name.endswith(".db")]
+                    if not db_names:
+                        raise ValueError("No .db file found inside ZIP backup.")
+                    with open(restore_tmp.name, "wb") as out:
+                        out.write(zipf.read(db_names[0]))
+            elif upload.filename.lower().endswith(".db"):
+                with open(restore_tmp.name, "wb") as out:
+                    out.write(raw)
+            else:
+                raise ValueError("Upload a .db or .zip backup file.")
+            db.session.remove()
+            db.engine.dispose()
+            shutil.copy2(restore_tmp.name, db_path)
+            flash("Database restored. Restart Project Solace now so all pages use the restored file.", "success")
+        except Exception as exc:
+            flash(f"Restore failed: {exc}", "danger")
+        return redirect(url_for("main.backup_restore"))
+
+    return render_template("backup_restore.html", db_path=db_path, last_backup=last_backup)
+
+
+@main.route("/audit-log")
+@login_required
+def audit_log():
+    rows = AuditLog.query.order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).limit(200).all()
+    return render_template("audit_log.html", rows=rows)
+
+
+@main.route("/notifications", methods=["GET", "POST"])
+@login_required
+def notifications():
+    settings_row = NotificationSetting.query.first()
+    if not settings_row:
+        settings_row = NotificationSetting()
+        db.session.add(settings_row)
+        db.session.commit()
+    form = NotificationSettingsForm(obj=settings_row)
+    if form.validate_on_submit():
+        form.populate_obj(settings_row)
+        db.session.commit()
+        audit("update_notifications", "NotificationSetting", "Notifications", "Updated notification settings")
+        flash("Notification settings saved.", "success")
+        return redirect(url_for("main.notifications"))
+    return render_template("notifications.html", form=form)
+
 def bills_to_rows():
     rows = []
     for bill in RecurringBill.query.order_by(RecurringBill.name).all():
@@ -979,7 +1223,7 @@ def make_csv_response(filename, rows):
 @main.route("/data")
 @login_required
 def data_tools():
-    return render_template("data_tools.html")
+    return render_template("data_tools.html", import_preview=session.get("bill_import_preview") or [])
 
 
 @main.route("/data/export/bills.csv")
@@ -1040,6 +1284,8 @@ def export_backup_xlsx():
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
     wb.save(tmp.name)
     tmp.close()
+    audit("export_backup_xlsx", "Backup", "Readable XLSX backup", "Downloaded readable backup")
+    db.session.commit()
     return send_file(tmp.name, as_attachment=True, download_name="project-solace-backup.xlsx")
 
 
@@ -1052,6 +1298,8 @@ def export_database_zip():
     with ZipFile(tmp.name, "w", ZIP_DEFLATED) as zipf:
         if os.path.exists(db_path):
             zipf.write(db_path, arcname="solace.db")
+    audit("export_database_zip", "Backup", "SQLite database ZIP", "Downloaded database backup")
+    db.session.commit()
     return send_file(tmp.name, as_attachment=True, download_name="project-solace-database-backup.zip")
 
 
@@ -1087,6 +1335,7 @@ def pick(row, *names, default=""):
     return default
 
 
+
 @main.route("/data/import/bills", methods=["POST"])
 @login_required
 def import_bills():
@@ -1095,48 +1344,64 @@ def import_bills():
         flash("Choose a CSV or XLSX file first.", "warning")
         return redirect(url_for("main.data_tools"))
     try:
-        rows = read_uploaded_rows(upload)
-        imported = 0
-        for row in rows:
-            name = str(pick(row, "name", "bill", "bill_name")).strip()
-            if not name:
+        raw_rows = read_uploaded_rows(upload)
+        parsed_rows, error_count = parse_bill_import_rows(raw_rows)
+        session["bill_import_preview"] = parsed_rows
+        if error_count:
+            flash(f"Import preview found {error_count} row(s) with errors. Fix the file or import only after reviewing.", "warning")
+        else:
+            flash(f"Import preview ready: {len(parsed_rows)} bill(s) detected.", "success")
+        return redirect(url_for("main.data_tools"))
+    except Exception as exc:
+        flash(f"Import preview failed: {exc}", "danger")
+        return redirect(url_for("main.data_tools"))
+
+
+@main.route("/data/import/bills/confirm", methods=["POST"])
+@login_required
+def confirm_import_bills():
+    parsed_rows = session.get("bill_import_preview") or []
+    if not parsed_rows:
+        flash("No bill import preview is waiting to be confirmed.", "warning")
+        return redirect(url_for("main.data_tools"))
+    imported = 0
+    try:
+        for row in parsed_rows:
+            if row.get("errors"):
                 continue
-            amount = float(pick(row, "amount", "cost", default=0))
-            frequency = str(pick(row, "frequency", default="Monthly")).strip().title()
-            if frequency == "Six Monthly":
-                frequency = "Six-monthly"
-            due_day = int(float(pick(row, "due_day", "day", "due", default=1)))
-            due_month_raw = pick(row, "due_month", "month", default="")
-            due_month = int(float(due_month_raw)) if due_month_raw not in [None, ""] else None
-            start_date = normalise_date_string(pick(row, "start_date", "start", default=f"{get_settings().budget_year}-01-01"))
-            end_value = pick(row, "end_date", "end", default="")
-            end_date = normalise_date_string(end_value) if end_value else None
-            category = get_or_create_category(pick(row, "category", default=""), "Bill")
-            active = str(pick(row, "active", default="yes")).strip().lower() not in ["no", "false", "0"]
-            autopay = str(pick(row, "autopay", "auto_pay", default="no")).strip().lower() in ["yes", "true", "1"]
-            include = str(pick(row, "include_in_set_aside", "include", default="yes")).strip().lower() not in ["no", "false", "0"]
+            category = get_or_create_category(row.get("category", ""), "Bill")
             bill = RecurringBill(
-                name=name,
-                amount=amount,
-                frequency=frequency,
-                due_day=due_day,
-                due_month=due_month,
-                start_date=start_date,
-                end_date=end_date,
+                name=row["name"],
+                amount=float(row["amount"]),
+                frequency=row["frequency"],
+                due_day=int(row["due_day"]),
+                due_month=row.get("due_month"),
+                start_date=row["start_date"],
+                end_date=row.get("end_date"),
                 category_id=category.id if category else None,
-                active=active,
-                autopay=autopay,
-                account_name=pick(row, "account_name", "account", default=""),
-                include_in_set_aside=include,
-                notes=pick(row, "notes", default=""),
+                active=bool(row.get("active", True)),
+                autopay=bool(row.get("autopay", False)),
+                account_name=row.get("account_name", ""),
+                include_in_set_aside=bool(row.get("include_in_set_aside", True)),
+                notes=row.get("notes", ""),
             )
             db.session.add(bill)
             db.session.flush()
             regenerate_bill_occurrences(bill, scope="all_unpaid")
             imported += 1
+        audit("import_bills", "RecurringBill", "Bill import", f"Imported {imported} bills from preview")
         db.session.commit()
+        session.pop("bill_import_preview", None)
         flash(f"Imported {imported} recurring bills.", "success")
     except Exception as exc:
         db.session.rollback()
         flash(f"Import failed: {exc}", "danger")
+    return redirect(url_for("main.data_tools"))
+
+
+@main.route("/data/import/bills/cancel", methods=["POST"])
+@login_required
+def cancel_import_bills():
+    session.pop("bill_import_preview", None)
+    flash("Bill import preview cleared.", "info")
     return redirect(url_for("main.data_tools"))

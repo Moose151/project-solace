@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="mb-1">Payday checklist</h1>
+    <div class="page-kicker">{{ cycle_start.strftime('%d %b %Y') }} – {{ cycle_end.strftime('%d %b %Y') }} · next payday {{ next_payday.strftime('%d %b %Y') }}</div>
+  </div>
+  <div class="action-bar"><a href="{{ url_for('main.pay_split') }}" class="btn btn-outline-primary">View pay split</a></div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="card h-100"><div class="card-body">
+      <div class="metric-label">Expected household income</div>
+      <div class="display-6 fw-semibold">{{ settings.currency_symbol }}{{ '%.2f'|format(income_total) }}</div>
+      <hr>
+      <h2 class="h6">Income in this cycle</h2>
+      {% if income_items %}
+      <div class="list-group list-group-flush">
+        {% for item in income_items %}
+        <div class="list-group-item px-0 d-flex justify-content-between"><span>{{ item.source.owner_name }} · {{ item.source.name }}<br><small class="text-muted">{{ item.date.strftime('%d %b %Y') }}</small></span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</strong></div>
+        {% endfor %}
+      </div>
+      {% else %}<p class="text-muted mb-0">No income sources fall inside this pay cycle.</p>{% endif %}
+    </div></div>
+  </div>
+  <div class="col-lg-7">
+    <form method="post" class="card h-100"><div class="card-body">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="d-flex justify-content-between align-items-start mb-3">
+        <div><h2 class="h5 mb-1">Transfers and checks</h2><p class="text-muted mb-0">Tick each item off as you complete it on payday.</p></div>
+        <button class="btn btn-primary">Save checklist</button>
+      </div>
+      <div class="checklist-stack">
+      {% for item in checklist_items %}
+        <label class="checklist-row">
+          <input class="form-check-input" type="checkbox" name="completed_{{ item.id }}" {% if item.completed %}checked{% endif %}>
+          <span class="flex-grow-1">{{ item.label }}{% if item.completed_at %}<br><small class="text-muted">Completed {{ item.completed_at }}</small>{% endif %}</span>
+          {% if item.amount %}<strong>{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</strong>{% endif %}
+        </label>
+      {% endfor %}
+      </div>
+    </div></form>
+  </div>
+</div>
+
+<div class="card mt-4"><div class="card-body">
+  <h2 class="h5">Per-person transfer summary</h2>
+  {% if person_bucket_allocations %}
+  <div class="row g-3">
+    {% for person in person_bucket_allocations %}
+    <div class="col-lg-6"><div class="soft-panel h-100">
+      <div class="d-flex justify-content-between"><strong>{{ person.person }}</strong><span>{{ settings.currency_symbol }}{{ '%.2f'|format(person.income_total) }} income</span></div>
+      <hr>
+      {% for row in person.bucket_allocations %}
+      <div class="mini-stat"><span>{{ row.bucket.name }}</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(row.rounded_amount) }}</strong></div>
+      {% endfor %}
+      <div class="mini-stat total"><span>Total buckets</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(person.bucket_total) }}</strong></div>
+      <div class="mini-stat"><span>Remaining</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(person.remaining) }}</strong></div>
+    </div></div>
+    {% endfor %}
+  </div>
+  {% else %}<p class="text-muted mb-0">Add income sources with a person name to see individual transfer cards.</p>{% endif %}
+</div></div>
+{% endblock %}

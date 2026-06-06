@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <div><h1 class="mb-1">Backup & Restore</h1><div class="page-kicker">Protect the Project Solace database before updates or major changes.</div></div>
+  <div class="action-bar"><a href="{{ url_for('main.data_tools') }}" class="btn btn-outline-secondary">Import & export</a></div>
+</div>
+<div class="row g-4">
+  <div class="col-lg-6"><div class="card h-100"><div class="card-body">
+    <h2 class="h5">Download backups</h2>
+    <p class="text-muted">The database ZIP is the full restore-capable backup. The XLSX backup is easier to read but is not a complete restore file.</p>
+    <div class="d-grid gap-2">
+      <a class="btn btn-primary" href="{{ url_for('main.export_database_zip') }}">Download full database ZIP</a>
+      <a class="btn btn-outline-success" href="{{ url_for('main.export_backup_xlsx') }}">Download readable XLSX backup</a>
+    </div>
+    <hr><p class="small text-muted mb-0">Database path: <code>{{ db_path }}</code>{% if last_backup %}<br>Last local restore safety backup: <code>{{ last_backup }}</code>{% endif %}</p>
+  </div></div></div>
+  <div class="col-lg-6"><div class="card border-warning h-100"><div class="card-body">
+    <h2 class="h5">Restore database</h2>
+    <p class="text-muted">Upload a previous <code>solace.db</code> file or Project Solace database ZIP. A safety copy of the current database will be made first.</p>
+    <form method="post" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input class="form-control mb-3" type="file" name="restore_file" accept=".db,.zip">
+      <label class="form-label">Type RESTORE to confirm</label>
+      <input class="form-control mb-3" name="confirm_restore" placeholder="RESTORE">
+      <button class="btn btn-warning">Restore database</button>
+    </form>
+    <p class="small text-muted mt-3 mb-0">After restoring, restart Project Solace so all pages use the restored database.</p>
+  </div></div></div>
+</div>
+{% endblock %}

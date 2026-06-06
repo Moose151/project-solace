@@ -30,6 +30,7 @@
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
         <li class="nav-item"><a class="nav-link" href="{{ url_for('main.dashboard') }}">Dashboard</a></li>
         <li class="nav-item"><a class="nav-link" href="{{ url_for('main.pay_split') }}">Pay Split</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('main.payday_checklist') }}">Payday</a></li>
         <li class="nav-item"><a class="nav-link" href="{{ url_for('main.buckets') }}">Buckets</a></li>
         <li class="nav-item"><a class="nav-link" href="{{ url_for('main.calendar_current') }}">Calendar</a></li>
         <li class="nav-item dropdown">
@@ -47,7 +48,10 @@
             <li><a class="dropdown-item" href="{{ url_for('main.income_sources') }}">Income Sources</a></li>
             <li><a class="dropdown-item" href="{{ url_for('main.categories') }}">Categories</a></li>
             <li><a class="dropdown-item" href="{{ url_for('main.account_balance') }}">Balance</a></li>
-            <li><a class="dropdown-item" href="{{ url_for('main.data_tools') }}">Data & Backups</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('main.backup_restore') }}">Backup & Restore</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('main.data_tools') }}">Import & Export</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('main.notifications') }}">Notifications</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('main.audit_log') }}">Audit Log</a></li>
             <li><hr class="dropdown-divider"></li>
             <li><a class="dropdown-item" href="{{ url_for('main.dashboard_layout') }}">Dashboard Layout</a></li>
             <li><a class="dropdown-item" href="{{ url_for('main.settings_page') }}">Settings</a></li>

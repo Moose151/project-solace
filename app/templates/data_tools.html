@@ -1,10 +1,11 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="page-header">
   <div>
-    <h1 class="mb-1">Data Tools</h1>
-    <p class="text-muted mb-0">Import, export, and backup Project Solace data.</p>
+    <h1 class="mb-1">Import & Export</h1>
+    <p class="page-kicker mb-0">Preview imports before committing data. Use Backup & Restore for full database backups.</p>
   </div>
+  <div class="action-bar"><a href="{{ url_for('main.backup_restore') }}" class="btn btn-outline-primary">Backup & Restore</a></div>
 </div>
 
 <div class="row g-4">
@@ -12,11 +13,11 @@
     <div class="card shadow-sm h-100">
       <div class="card-body">
         <h2 class="h5">Import recurring bills</h2>
-        <p class="text-muted">Upload a CSV or XLSX file. Supported columns include name, amount, frequency, due_day, due_month, start_date, end_date, category, active, autopay, account_name, include_in_set_aside, and notes.</p>
+        <p class="text-muted">Upload a CSV or XLSX file. Project Solace will show a preview first; no records are created until you confirm.</p>
         <form method="post" action="{{ url_for('main.import_bills') }}" enctype="multipart/form-data">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input class="form-control mb-3" type="file" name="file" accept=".csv,.xlsx">
-          <button class="btn btn-primary">Import bills</button>
+          <button class="btn btn-primary">Preview bill import</button>
         </form>
       </div>
     </div>
@@ -24,18 +25,34 @@
   <div class="col-lg-6">
     <div class="card shadow-sm h-100">
       <div class="card-body">
-        <h2 class="h5">Export and backup</h2>
+        <h2 class="h5">Export data</h2>
         <div class="d-grid gap-2">
           <a class="btn btn-outline-primary" href="{{ url_for('main.export_bills_csv') }}">Export bills CSV</a>
           <a class="btn btn-outline-primary" href="{{ url_for('main.export_purchases_csv') }}">Export planned purchases CSV</a>
           <a class="btn btn-outline-primary" href="{{ url_for('main.export_income_csv') }}">Export income sources CSV</a>
           <a class="btn btn-outline-primary" href="{{ url_for('main.export_buckets_csv') }}">Export buckets CSV</a>
           <a class="btn btn-outline-success" href="{{ url_for('main.export_backup_xlsx') }}">Export readable XLSX backup</a>
-          <a class="btn btn-outline-secondary" href="{{ url_for('main.export_database_zip') }}">Download SQLite database ZIP</a>
         </div>
-        <p class="text-muted small mt-3 mb-0">The database ZIP is the safest full backup. The CSV/XLSX exports are for review and migration.</p>
+        <p class="text-muted small mt-3 mb-0">CSV/XLSX exports are useful for review and migration. Use the full database backup for restore-capable backups.</p>
       </div>
     </div>
   </div>
 </div>
+
+{% if import_preview %}
+<div class="card mt-4 border-primary"><div class="card-body">
+  <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+    <div><h2 class="h5 mb-1">Bill import preview</h2><p class="text-muted mb-0">Rows with errors will not be imported. Confirm only if the preview looks correct.</p></div>
+    <div class="d-flex gap-2">
+      <form method="post" action="{{ url_for('main.confirm_import_bills') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-success">Confirm import</button></form>
+      <form method="post" action="{{ url_for('main.cancel_import_bills') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-secondary">Cancel</button></form>
+    </div>
+  </div>
+  <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Row</th><th>Name</th><th>Amount</th><th>Frequency</th><th>Due</th><th>Category</th><th>Status</th></tr></thead><tbody>
+  {% for row in import_preview %}
+    <tr class="{% if row.errors %}table-warning{% endif %}"><td>{{ row.source_row }}</td><td>{{ row.name }}</td><td>{{ settings.currency_symbol }}{{ '%.2f'|format(row.amount or 0) }}</td><td>{{ row.frequency }}</td><td>{{ row.due_day }}{% if row.due_month %}/{{ row.due_month }}{% endif %}</td><td>{{ row.category }}</td><td>{% if row.errors %}<span class="text-danger">{{ row.errors|join('; ') }}</span>{% else %}<span class="text-success">Ready</span>{% endif %}</td></tr>
+  {% endfor %}
+  </tbody></table></div>
+</div></div>
+{% endif %}
 {% endblock %}
