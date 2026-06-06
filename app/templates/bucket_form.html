@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="mb-4">{{ title }}</h1>
+<div class="card shadow-sm"><div class="card-body">
+  <form method="post">
+    {{ form.hidden_tag() }}
+    <div class="row g-3">
+      <div class="col-md-6">{{ form.name.label(class="form-label") }}{{ form.name(class="form-control") }}</div>
+      <div class="col-md-3">{{ form.percentage.label(class="form-label") }}{{ form.percentage(class="form-control", step="0.01") }}</div>
+      <div class="col-md-3">{{ form.fixed_amount.label(class="form-label") }}{{ form.fixed_amount(class="form-control", step="0.01") }}</div>
+      <div class="col-md-4">{{ form.rounding_increment.label(class="form-label") }}{{ form.rounding_increment(class="form-select") }}</div>
+      <div class="col-md-4">{{ form.bucket_type.label(class="form-label") }}{{ form.bucket_type(class="form-select") }}</div>
+      <div class="col-md-2">{{ form.sort_order.label(class="form-label") }}{{ form.sort_order(class="form-control") }}</div>
+      <div class="col-md-2 d-flex align-items-end"><div class="form-check">{{ form.active(class="form-check-input") }}{{ form.active.label(class="form-check-label") }}</div></div>
+      <div class="col-12"><div class="form-check">{{ form.cap_to_remaining(class="form-check-input") }}{{ form.cap_to_remaining.label(class="form-check-label") }}<div class="form-text">Use this for a flexible/final bucket so it takes only what is left instead of making the pay split negative.</div></div></div>
+      <div class="col-12">{{ form.notes.label(class="form-label") }}{{ form.notes(class="form-control", rows="3") }}</div>
+    </div>
+    <div class="mt-4"><button class="btn btn-primary">Save bucket</button> <a class="btn btn-outline-secondary" href="{{ url_for('main.buckets') }}">Cancel</a></div>
+  </form>
+</div></div>
+{% endblock %}

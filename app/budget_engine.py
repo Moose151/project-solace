@@ -7,8 +7,9 @@ def parse_date(value):
     """Convert common date inputs into a date object.
 
     HTML date inputs usually submit YYYY-MM-DD. Australian users may also
-    manually type DD/MM/YYYY or DD-MM-YYYY. Supporting all three prevents
-    a bad date entry from crashing the app.
+    manually type Australian-style dates, including DD/MM/YYYY, DD-MM-YYYY,
+    DD/MM/YY, and DD-MM-YY. Supporting these formats prevents a bad date
+    entry from crashing the app.
     """
     if not value:
         return None
@@ -18,14 +19,22 @@ def parse_date(value):
 
     value = str(value).strip()
 
-    for date_format in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+    supported_formats = (
+        "%Y-%m-%d",  # 2026-06-08, from HTML date inputs
+        "%d/%m/%Y",  # 08/06/2026
+        "%d-%m-%Y",  # 08-06-2026
+        "%d/%m/%y",  # 08/06/26
+        "%d-%m-%y",  # 08-06-26
+    )
+
+    for date_format in supported_formats:
         try:
             return datetime.strptime(value, date_format).date()
         except ValueError:
             continue
 
     raise ValueError(
-        f"Invalid date format: {value}. Use YYYY-MM-DD or DD/MM/YYYY."
+        f"Invalid date format: {value}. Use YYYY-MM-DD, DD/MM/YYYY, or DD/MM/YY."
     )
 
 
@@ -169,3 +178,79 @@ def planned_purchase_fortnightly_amount(purchase, first_payday):
     remaining = max(purchase.target_amount - purchase.amount_saved, 0)
     periods = fortnights_until(purchase.target_date, first_payday)
     return money(remaining / periods)
+
+
+def round_to_increment(value, increment):
+    """Round a transfer amount to the nearest configured dollar increment."""
+    increment = int(increment or 1)
+    if increment <= 1:
+        return money(value)
+    return money(round(float(value or 0) / increment) * increment)
+
+
+def generate_income_dates(income_source, cycle_start, cycle_end):
+    """Generate expected income dates that fall inside a pay cycle.
+
+    The MVP only supports fortnightly income sources because that matches the
+    household use case, but the source stores frequency so it can be expanded.
+    """
+    if not income_source.active:
+        return []
+    current = parse_date(income_source.next_pay_date)
+    if not current:
+        return []
+    cycle_start = parse_date(cycle_start)
+    cycle_end = parse_date(cycle_end)
+    interval_days = 14
+    while current < cycle_start:
+        current += timedelta(days=interval_days)
+    dates = []
+    while current <= cycle_end:
+        dates.append(current)
+        current += timedelta(days=interval_days)
+    return dates
+
+
+def income_for_cycle(income_sources, cycle_start, cycle_end):
+    """Return expected income items and total for a pay cycle."""
+    items = []
+    for source in income_sources:
+        for pay_date in generate_income_dates(source, cycle_start, cycle_end):
+            items.append({"source": source, "date": pay_date, "amount": money(source.amount)})
+    items.sort(key=lambda item: item["date"])
+    return items, money(sum(item["amount"] for item in items))
+
+
+def calculate_bucket_allocations(buckets, income_total):
+    """Calculate raw and rounded bucket amounts for a household pay cycle.
+
+    Buckets are processed in display/order sequence. When a bucket has
+    cap_to_remaining enabled, its transfer is reduced to the remaining income
+    if the normal rounded amount would push the pay split below zero. This is
+    useful for final/flexible buckets such as Spending, Splurge, or Leftover.
+    """
+    rows = []
+    allocated_total = money(0)
+
+    for bucket in buckets:
+        raw_amount = bucket.fixed_amount if bucket.fixed_amount not in [None, ""] else income_total * (bucket.percentage / 100)
+        rounded_amount = round_to_increment(raw_amount, bucket.rounding_increment)
+
+        remaining_before = money(income_total - allocated_total)
+        capped = False
+
+        if getattr(bucket, "cap_to_remaining", False) and rounded_amount > remaining_before:
+            rounded_amount = money(max(remaining_before, 0))
+            capped = True
+
+        allocated_total = money(allocated_total + rounded_amount)
+
+        rows.append({
+            "bucket": bucket,
+            "raw_amount": money(raw_amount),
+            "rounded_amount": rounded_amount,
+            "remaining_before": remaining_before,
+            "capped": capped,
+            "percentage_of_income": money((rounded_amount / income_total * 100) if income_total else 0),
+        })
+    return rows

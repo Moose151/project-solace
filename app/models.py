@@ -87,3 +87,26 @@ class AccountBalanceSnapshot(db.Model):
     snapshot_date = db.Column(db.String(10), nullable=False)
     balance = db.Column(db.Float, nullable=False)
     notes = db.Column(db.Text, nullable=True)
+
+
+class IncomeSource(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    frequency = db.Column(db.String(30), nullable=False, default="Fortnightly")
+    next_pay_date = db.Column(db.String(10), nullable=False)
+    active = db.Column(db.Boolean, default=True)
+    notes = db.Column(db.Text, nullable=True)
+
+
+class Bucket(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    percentage = db.Column(db.Float, nullable=False, default=0)
+    fixed_amount = db.Column(db.Float, nullable=True)
+    rounding_increment = db.Column(db.Integer, nullable=False, default=10)
+    cap_to_remaining = db.Column(db.Boolean, default=False)
+    bucket_type = db.Column(db.String(30), nullable=False, default="Other")  # Bills, Savings, Spending, Planned purchases, Other
+    active = db.Column(db.Boolean, default=True)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+    notes = db.Column(db.Text, nullable=True)

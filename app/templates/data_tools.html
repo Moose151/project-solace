@@ -28,6 +28,8 @@
         <div class="d-grid gap-2">
           <a class="btn btn-outline-primary" href="{{ url_for('main.export_bills_csv') }}">Export bills CSV</a>
           <a class="btn btn-outline-primary" href="{{ url_for('main.export_purchases_csv') }}">Export planned purchases CSV</a>
+          <a class="btn btn-outline-primary" href="{{ url_for('main.export_income_csv') }}">Export income sources CSV</a>
+          <a class="btn btn-outline-primary" href="{{ url_for('main.export_buckets_csv') }}">Export buckets CSV</a>
           <a class="btn btn-outline-success" href="{{ url_for('main.export_backup_xlsx') }}">Export readable XLSX backup</a>
           <a class="btn btn-outline-secondary" href="{{ url_for('main.export_database_zip') }}">Download SQLite database ZIP</a>
         </div>

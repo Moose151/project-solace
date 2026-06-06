@@ -180,3 +180,15 @@ For the current early stage, the simplest update path is:
 4. Restart Flask or Docker Compose.
 
 The app includes lightweight SQLite migrations for small schema changes.
+
+## v6: Income and Buckets
+
+Project Solace now supports household income sources and bucket-based pay splitting.
+
+New pages:
+
+- **Income**: add each expected fortnightly income source, including pays that arrive on different days in the same pay week.
+- **Buckets**: configure percentage-based or fixed transfer buckets, with rounding to practical transfer amounts.
+- **Pay Split**: shows the current pay cycle's expected household income, rounded bucket transfers, and whether the Bills/Planned Purchases buckets cover the Project Solace set-aside amount.
+
+This keeps Solace focused on pay planning rather than transaction tracking. Income is entered as recurring expected income, not as individual transactions.

@@ -74,3 +74,44 @@ class AccountBalanceForm(FlaskForm):
     balance = FloatField("Bills/set-aside account balance", validators=[DataRequired()])
     notes = TextAreaField("Notes", validators=[Optional()])
     submit = SubmitField("Save balance")
+
+
+class IncomeSourceForm(FlaskForm):
+    name = StringField("Income source name", validators=[DataRequired(), Length(max=120)])
+    amount = FloatField("Amount", validators=[DataRequired(), NumberRange(min=0.01)])
+    frequency = SelectField("Frequency", choices=[("Fortnightly", "Fortnightly")])
+    next_pay_date = StringField("Next pay date", validators=[DataRequired()], description="YYYY-MM-DD or DD/MM/YYYY")
+    active = BooleanField("Active", default=True)
+    notes = TextAreaField("Notes", validators=[Optional()])
+    submit = SubmitField("Save income source")
+
+
+class BucketForm(FlaskForm):
+    name = StringField("Bucket name", validators=[DataRequired(), Length(max=120)])
+    percentage = FloatField("Percentage of household pay", validators=[DataRequired(), NumberRange(min=0, max=100)])
+    fixed_amount = FloatField("Optional fixed amount", validators=[Optional(), NumberRange(min=0)], description="Overrides percentage if entered")
+    rounding_increment = SelectField(
+        "Round transfer to nearest",
+        coerce=int,
+        choices=[(1, "$1"), (5, "$5"), (10, "$10"), (20, "$20"), (50, "$50"), (100, "$100")],
+        default=10,
+    )
+    cap_to_remaining = BooleanField(
+        "Use remainder if this bucket would make the pay split negative",
+        default=False,
+        description="Caps this bucket to whatever income remains after earlier buckets are allocated."
+    )
+    bucket_type = SelectField(
+        "Bucket type",
+        choices=[
+            ("Bills", "Bills"),
+            ("Savings", "Savings"),
+            ("Spending", "Spending"),
+            ("Planned purchases", "Planned purchases"),
+            ("Other", "Other"),
+        ],
+    )
+    active = BooleanField("Active", default=True)
+    sort_order = IntegerField("Sort order", validators=[Optional()], default=0)
+    notes = TextAreaField("Notes", validators=[Optional()])
+    submit = SubmitField("Save bucket")

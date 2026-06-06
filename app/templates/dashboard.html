@@ -40,6 +40,31 @@
 </div>
 
 <div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <div class="d-flex flex-column flex-md-row justify-content-between gap-3 mb-3">
+      <div>
+        <div class="text-muted">Expected household income this cycle</div>
+        <div class="h3 mb-1">{{ settings.currency_symbol }}{{ '%.2f'|format(income_total) }}</div>
+        <div class="text-muted small">Based on active income sources that fall inside the current pay cycle.</div>
+      </div>
+      <div>
+        <div class="text-muted">After bucket transfers</div>
+        <div class="h4 mb-1">{{ settings.currency_symbol }}{{ '%.2f'|format(remaining_after_buckets) }}</div>
+        <div class="text-muted small">Bucket total: {{ settings.currency_symbol }}{{ '%.2f'|format(total_bucket_amount) }}</div>
+      </div>
+      <div class="align-self-md-center"><a class="btn btn-outline-primary" href="{{ url_for('main.pay_split') }}">Open pay split</a></div>
+    </div>
+    {% if bucket_allocations %}
+    <div class="row g-2">
+      {% for row in bucket_allocations[:4] %}
+      <div class="col-md-3"><div class="border rounded p-2 h-100"><div class="text-muted small">{{ row.bucket.name }}</div><div class="fw-semibold">{{ settings.currency_symbol }}{{ '%.2f'|format(row.rounded_amount) }}</div></div></div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4">
   <div class="card-body d-flex flex-column flex-md-row justify-content-between gap-3">
     <div>
       <div class="text-muted">Latest bills account balance</div>

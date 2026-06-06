@@ -5,7 +5,7 @@ from flask_wtf.csrf import CSRFProtect
 from werkzeug.security import generate_password_hash
 from sqlalchemy import text
 
-from .models import db, User, Settings, Category
+from .models import db, User, Settings, Category, Bucket
 
 login_manager = LoginManager()
 login_manager.login_view = "main.login"
@@ -60,6 +60,27 @@ def apply_lightweight_migrations():
     """
     if not column_exists("settings", "theme"):
         db.session.execute(text("ALTER TABLE settings ADD COLUMN theme VARCHAR(20) NOT NULL DEFAULT 'Light'"))
+
+    if not column_exists("bucket", "cap_to_remaining"):
+        db.session.execute(text("ALTER TABLE bucket ADD COLUMN cap_to_remaining BOOLEAN NOT NULL DEFAULT 0"))
+
+    if not Bucket.query.first():
+        starter_buckets = [
+            ("Bills", 25, 10, "Bills", 10),
+            ("Savings", 20, 10, "Savings", 20),
+            ("Spending", 45, 10, "Spending", 30),
+            ("Splurge", 10, 10, "Other", 40),
+        ]
+        for name, percentage, rounding_increment, bucket_type, sort_order in starter_buckets:
+            db.session.add(Bucket(
+                name=name,
+                percentage=percentage,
+                rounding_increment=rounding_increment,
+                bucket_type=bucket_type,
+                sort_order=sort_order,
+                active=True,
+            ))
+
     db.session.commit()
 
 
@@ -103,5 +124,23 @@ def seed_default_data():
         ]
         for name, category_type in starter_categories:
             db.session.add(Category(name=name, category_type=category_type, active=True))
+
+
+    if not Bucket.query.first():
+        starter_buckets = [
+            ("Bills", 25, 10, "Bills", 10),
+            ("Savings", 20, 10, "Savings", 20),
+            ("Spending", 45, 10, "Spending", 30),
+            ("Splurge", 10, 10, "Other", 40),
+        ]
+        for name, percentage, rounding_increment, bucket_type, sort_order in starter_buckets:
+            db.session.add(Bucket(
+                name=name,
+                percentage=percentage,
+                rounding_increment=rounding_increment,
+                bucket_type=bucket_type,
+                sort_order=sort_order,
+                active=True,
+            ))
 
     db.session.commit()

@@ -10,11 +10,11 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request,
 from flask_login import login_user, logout_user, login_required
 from werkzeug.security import check_password_hash
 
-from .models import db, User, Settings, Category, RecurringBill, BillOccurrence, PlannedPurchase, AccountBalanceSnapshot
-from .forms import LoginForm, SettingsForm, CategoryForm, RecurringBillForm, PlannedPurchaseForm, AccountBalanceForm
+from .models import db, User, Settings, Category, RecurringBill, BillOccurrence, PlannedPurchase, AccountBalanceSnapshot, IncomeSource, Bucket
+from .forms import LoginForm, SettingsForm, CategoryForm, RecurringBillForm, PlannedPurchaseForm, AccountBalanceForm, IncomeSourceForm, BucketForm
 from .budget_engine import (
     annual_cost, fortnightly_bill_amount, generate_bill_dates,
-    planned_purchase_fortnightly_amount, current_pay_cycle, money, parse_date
+    planned_purchase_fortnightly_amount, current_pay_cycle, money, parse_date, income_for_cycle, calculate_bucket_allocations
 )
 
 main = Blueprint("main", __name__)
@@ -136,6 +136,13 @@ def dashboard():
     today = date.today()
     cycle_start, cycle_end, next_payday = current_pay_cycle(settings.first_payday, today=today)
 
+    income_sources = IncomeSource.query.filter_by(active=True).order_by(IncomeSource.next_pay_date, IncomeSource.name).all()
+    income_items, income_total = income_for_cycle(income_sources, cycle_start, cycle_end)
+    buckets = Bucket.query.filter_by(active=True).order_by(Bucket.sort_order, Bucket.name).all()
+    bucket_allocations = calculate_bucket_allocations(buckets, income_total)
+    total_bucket_amount = money(sum(row["rounded_amount"] for row in bucket_allocations))
+    remaining_after_buckets = money(income_total - total_bucket_amount)
+
     due_before_next_payday = BillOccurrence.query.filter(
         BillOccurrence.due_date >= today.isoformat(),
         BillOccurrence.due_date <= next_payday.isoformat(),
@@ -163,6 +170,8 @@ def dashboard():
     setup_steps = [
         {"label": "Check household settings", "done": bool(settings.first_payday), "url": url_for("main.settings_page")},
         {"label": "Add your first recurring bill", "done": RecurringBill.query.count() > 0, "url": url_for("main.new_bill")},
+        {"label": "Add an income source", "done": IncomeSource.query.count() > 0, "url": url_for("main.new_income")},
+        {"label": "Review your buckets", "done": Bucket.query.count() > 0, "url": url_for("main.buckets")},
         {"label": "Add a planned purchase", "done": PlannedPurchase.query.count() > 0, "url": url_for("main.new_purchase")},
         {"label": "Add bills account balance", "done": AccountBalanceSnapshot.query.count() > 0, "url": url_for("main.account_balance")},
     ]
@@ -189,6 +198,13 @@ def dashboard():
         latest_balance=latest_balance,
         current_cycle_unpaid=current_cycle_unpaid,
         projected_balance_after_cycle=projected_balance_after_cycle,
+        income_sources=income_sources,
+        income_items=income_items,
+        income_total=income_total,
+        buckets=buckets,
+        bucket_allocations=bucket_allocations,
+        total_bucket_amount=total_bucket_amount,
+        remaining_after_buckets=remaining_after_buckets,
     )
 
 
@@ -426,6 +442,10 @@ def pay_cycle():
     recurring_average = money(sum(fortnightly_bill_amount(b) for b in active_bills))
     purchase_average = money(sum(planned_purchase_fortnightly_amount(p, settings.first_payday) for p in purchases))
     total_average = money(recurring_average + purchase_average + settings.default_buffer_amount)
+    income_sources = IncomeSource.query.filter_by(active=True).order_by(IncomeSource.next_pay_date, IncomeSource.name).all()
+    income_items, income_total = income_for_cycle(income_sources, cycle_start, cycle_end)
+    buckets = Bucket.query.filter_by(active=True).order_by(Bucket.sort_order, Bucket.name).all()
+    bucket_allocations = calculate_bucket_allocations(buckets, income_total)
 
     return render_template(
         "pay_cycle.html",
@@ -437,6 +457,128 @@ def pay_cycle():
         recurring_average=recurring_average,
         purchase_average=purchase_average,
         total_average=total_average,
+        income_items=income_items,
+        income_total=income_total,
+        bucket_allocations=bucket_allocations,
+    )
+
+
+@main.route("/income")
+@login_required
+def income_sources():
+    rows = IncomeSource.query.order_by(IncomeSource.active.desc(), IncomeSource.next_pay_date, IncomeSource.name).all()
+    return render_template("income.html", income_sources=rows)
+
+
+@main.route("/income/new", methods=["GET", "POST"])
+@login_required
+def new_income():
+    form = IncomeSourceForm()
+    if form.validate_on_submit():
+        income = IncomeSource()
+        form.populate_obj(income)
+        income.next_pay_date = normalise_date_string(income.next_pay_date)
+        db.session.add(income)
+        db.session.commit()
+        flash("Income source added.", "success")
+        return redirect(url_for("main.income_sources"))
+    return render_template("income_form.html", form=form, title="Add income source")
+
+
+@main.route("/income/<int:income_id>/edit", methods=["GET", "POST"])
+@login_required
+def edit_income(income_id):
+    income = db.session.get(IncomeSource, income_id)
+    form = IncomeSourceForm(obj=income)
+    if form.validate_on_submit():
+        form.populate_obj(income)
+        income.next_pay_date = normalise_date_string(income.next_pay_date)
+        db.session.commit()
+        flash("Income source updated.", "success")
+        return redirect(url_for("main.income_sources"))
+    return render_template("income_form.html", form=form, title="Edit income source")
+
+
+@main.route("/income/<int:income_id>/delete", methods=["POST"])
+@login_required
+def delete_income(income_id):
+    income = db.session.get(IncomeSource, income_id)
+    db.session.delete(income)
+    db.session.commit()
+    flash("Income source deleted.", "success")
+    return redirect(url_for("main.income_sources"))
+
+
+@main.route("/buckets", methods=["GET", "POST"])
+@login_required
+def buckets():
+    form = BucketForm()
+    if form.validate_on_submit():
+        bucket = Bucket()
+        form.populate_obj(bucket)
+        db.session.add(bucket)
+        db.session.commit()
+        flash("Bucket added.", "success")
+        return redirect(url_for("main.buckets"))
+    rows = Bucket.query.order_by(Bucket.active.desc(), Bucket.sort_order, Bucket.name).all()
+    total_percentage = money(sum(b.percentage for b in rows if b.active and b.fixed_amount in [None, ""]))
+    return render_template("buckets.html", form=form, buckets=rows, total_percentage=total_percentage)
+
+
+@main.route("/buckets/<int:bucket_id>/edit", methods=["GET", "POST"])
+@login_required
+def edit_bucket(bucket_id):
+    bucket = db.session.get(Bucket, bucket_id)
+    form = BucketForm(obj=bucket)
+    if form.validate_on_submit():
+        form.populate_obj(bucket)
+        db.session.commit()
+        flash("Bucket updated.", "success")
+        return redirect(url_for("main.buckets"))
+    return render_template("bucket_form.html", form=form, title="Edit bucket")
+
+
+@main.route("/buckets/<int:bucket_id>/delete", methods=["POST"])
+@login_required
+def delete_bucket(bucket_id):
+    bucket = db.session.get(Bucket, bucket_id)
+    db.session.delete(bucket)
+    db.session.commit()
+    flash("Bucket deleted.", "success")
+    return redirect(url_for("main.buckets"))
+
+
+@main.route("/pay-split")
+@login_required
+def pay_split():
+    settings = get_settings()
+    cycle_start, cycle_end, next_payday = current_pay_cycle(settings.first_payday)
+    income_sources = IncomeSource.query.filter_by(active=True).order_by(IncomeSource.next_pay_date, IncomeSource.name).all()
+    income_items, income_total = income_for_cycle(income_sources, cycle_start, cycle_end)
+    buckets = Bucket.query.filter_by(active=True).order_by(Bucket.sort_order, Bucket.name).all()
+    bucket_allocations = calculate_bucket_allocations(buckets, income_total)
+    recurring_average = money(sum(fortnightly_bill_amount(b) for b in RecurringBill.query.filter_by(active=True).all()))
+    purchase_average = money(sum(planned_purchase_fortnightly_amount(p, settings.first_payday) for p in PlannedPurchase.query.filter_by(status="Active").all()))
+    required_set_aside = money(recurring_average + purchase_average + settings.default_buffer_amount)
+    bills_bucket_total = money(sum(row["rounded_amount"] for row in bucket_allocations if row["bucket"].bucket_type in ["Bills", "Planned purchases"]))
+    bucket_total = money(sum(row["rounded_amount"] for row in bucket_allocations))
+    remaining = money(income_total - bucket_total)
+    shortfall = money(required_set_aside - bills_bucket_total)
+    return render_template(
+        "pay_split.html",
+        cycle_start=cycle_start,
+        cycle_end=cycle_end,
+        next_payday=next_payday,
+        income_items=income_items,
+        income_total=income_total,
+        bucket_allocations=bucket_allocations,
+        recurring_average=recurring_average,
+        purchase_average=purchase_average,
+        required_set_aside=required_set_aside,
+        bills_bucket_total=bills_bucket_total,
+        shortfall=shortfall,
+        bucket_total=bucket_total,
+        remaining=remaining,
     )
 
 
@@ -510,6 +652,37 @@ def purchases_to_rows():
     return rows
 
 
+
+def income_to_rows():
+    rows = []
+    for income in IncomeSource.query.order_by(IncomeSource.name).all():
+        rows.append({
+            "name": income.name,
+            "amount": income.amount,
+            "frequency": income.frequency,
+            "next_pay_date": income.next_pay_date,
+            "active": "yes" if income.active else "no",
+            "notes": income.notes or "",
+        })
+    return rows
+
+
+def buckets_to_rows():
+    rows = []
+    for bucket in Bucket.query.order_by(Bucket.sort_order, Bucket.name).all():
+        rows.append({
+            "name": bucket.name,
+            "percentage": bucket.percentage,
+            "fixed_amount": bucket.fixed_amount if bucket.fixed_amount is not None else "",
+            "rounding_increment": bucket.rounding_increment,
+            "bucket_type": bucket.bucket_type,
+            "cap_to_remaining": "yes" if getattr(bucket, "cap_to_remaining", False) else "no",
+            "active": "yes" if bucket.active else "no",
+            "sort_order": bucket.sort_order,
+            "notes": bucket.notes or "",
+        })
+    return rows
+
 def make_csv_response(filename, rows):
     output = io.StringIO()
     if rows:
@@ -543,6 +716,18 @@ def export_purchases_csv():
     return make_csv_response("project-solace-planned-purchases.csv", purchases_to_rows())
 
 
+@main.route("/data/export/income.csv")
+@login_required
+def export_income_csv():
+    return make_csv_response("project-solace-income-sources.csv", income_to_rows())
+
+
+@main.route("/data/export/buckets.csv")
+@login_required
+def export_buckets_csv():
+    return make_csv_response("project-solace-buckets.csv", buckets_to_rows())
+
+
 @main.route("/data/export/backup.xlsx")
 @login_required
 def export_backup_xlsx():
@@ -562,6 +747,18 @@ def export_backup_xlsx():
         ws2.append(list(purchase_rows[0].keys()))
         for row in purchase_rows:
             ws2.append(list(row.values()))
+    ws3 = wb.create_sheet("Income Sources")
+    income_rows = income_to_rows()
+    if income_rows:
+        ws3.append(list(income_rows[0].keys()))
+        for row in income_rows:
+            ws3.append(list(row.values()))
+    ws4 = wb.create_sheet("Buckets")
+    bucket_rows = buckets_to_rows()
+    if bucket_rows:
+        ws4.append(list(bucket_rows[0].keys()))
+        for row in bucket_rows:
+            ws4.append(list(row.values()))
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
     wb.save(tmp.name)
     tmp.close()

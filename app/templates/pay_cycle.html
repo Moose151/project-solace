@@ -9,6 +9,14 @@
 </div>
 
 <div class="card shadow-sm mb-4"><div class="card-body">
+  <div class="d-flex justify-content-between align-items-center mb-2"><h2 class="h5 mb-0">Income and buckets this cycle</h2><a class="btn btn-outline-primary btn-sm" href="{{ url_for('main.pay_split') }}">Full pay split</a></div>
+  <div class="row g-3">
+    <div class="col-md-4"><div class="border rounded p-3"><div class="text-muted">Household income</div><div class="h4">{{ settings.currency_symbol }}{{ '%.2f'|format(income_total) }}</div></div></div>
+    <div class="col-md-8"><div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>Bucket</th><th>Transfer</th></tr></thead><tbody>{% for row in bucket_allocations[:5] %}<tr><td>{{ row.bucket.name }}</td><td>{{ settings.currency_symbol }}{{ '%.2f'|format(row.rounded_amount) }}</td></tr>{% else %}<tr><td colspan="2" class="text-muted">No active buckets.</td></tr>{% endfor %}</tbody></table></div></div>
+  </div>
+</div></div>
+
+<div class="card shadow-sm mb-4"><div class="card-body">
   <h2 class="h5">Recommended set-aside breakdown</h2>
   <table class="table table-sm w-auto mb-0">
     <tr><th>Recurring bill average</th><td>{{ settings.currency_symbol }}{{ '%.2f'|format(recurring_average) }}</td></tr>

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div><h1 class="mb-1">Buckets</h1><div class="text-muted">Define how household pay is split each fortnight.</div></div>
+  <a class="btn btn-outline-primary" href="{{ url_for('main.pay_split') }}">View pay split</a>
+</div>
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="card shadow-sm"><div class="card-body">
+      <h2 class="h5">Add bucket</h2>
+      <form method="post">
+        {{ form.hidden_tag() }}
+        <div class="mb-3">{{ form.name.label(class="form-label") }}{{ form.name(class="form-control") }}</div>
+        <div class="row g-3">
+          <div class="col-md-6">{{ form.percentage.label(class="form-label") }}{{ form.percentage(class="form-control", step="0.01") }}</div>
+          <div class="col-md-6">{{ form.fixed_amount.label(class="form-label") }}{{ form.fixed_amount(class="form-control", step="0.01") }}</div>
+          <div class="col-md-6">{{ form.rounding_increment.label(class="form-label") }}{{ form.rounding_increment(class="form-select") }}</div>
+          <div class="col-md-6">{{ form.bucket_type.label(class="form-label") }}{{ form.bucket_type(class="form-select") }}</div>
+          <div class="col-md-6">{{ form.sort_order.label(class="form-label") }}{{ form.sort_order(class="form-control") }}</div>
+          <div class="col-md-6 d-flex align-items-end"><div class="form-check">{{ form.active(class="form-check-input") }}{{ form.active.label(class="form-check-label") }}</div></div>
+          <div class="col-12"><div class="form-check">{{ form.cap_to_remaining(class="form-check-input") }}{{ form.cap_to_remaining.label(class="form-check-label") }}<div class="form-text">Good for a flexible final bucket such as Spending or Splurge.</div></div></div>
+        </div>
+        <div class="mt-3">{{ form.notes.label(class="form-label") }}{{ form.notes(class="form-control", rows="2") }}</div>
+        <button class="btn btn-primary mt-3">Add bucket</button>
+      </form>
+    </div></div>
+  </div>
+  <div class="col-lg-7">
+    <div class="card shadow-sm"><div class="card-body">
+      <div class="d-flex justify-content-between"><h2 class="h5">Current buckets</h2><span class="text-muted">Active percentage total: {{ '%.2f'|format(total_percentage) }}%</span></div>
+      {% if buckets %}
+      <div class="table-responsive"><table class="table align-middle">
+        <thead><tr><th>Name</th><th>Type</th><th>%</th><th>Fixed</th><th>Round</th><th>Remainder cap</th><th>Active</th><th></th></tr></thead>
+        <tbody>
+        {% for bucket in buckets %}
+        <tr>
+          <td>{{ bucket.name }}</td><td>{{ bucket.bucket_type }}</td><td>{{ '%.2f'|format(bucket.percentage) }}%</td>
+          <td>{% if bucket.fixed_amount is not none %}{{ settings.currency_symbol }}{{ '%.2f'|format(bucket.fixed_amount) }}{% else %}-{% endif %}</td>
+          <td>{{ settings.currency_symbol }}{{ bucket.rounding_increment }}</td><td>{{ 'Yes' if bucket.cap_to_remaining else 'No' }}</td><td>{{ 'Yes' if bucket.active else 'No' }}</td>
+          <td class="text-end"><a class="btn btn-outline-primary btn-sm" href="{{ url_for('main.edit_bucket', bucket_id=bucket.id) }}">Edit</a>
+            <form class="d-inline" method="post" action="{{ url_for('main.delete_bucket', bucket_id=bucket.id) }}" onsubmit="return confirm('Delete this bucket?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-danger btn-sm">Delete</button></form>
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table></div>
+      {% else %}<p class="text-muted mb-0">No buckets yet.</p>{% endif %}
+    </div></div>
+  </div>
+</div>
+{% endblock %}
