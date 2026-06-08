@@ -9,7 +9,7 @@ services:
     ports:
       - "${SOLACE_PORT:-5055}:5000"
     volumes:
-      - ./instance:/app/instance
+      - ./instance:/app/instance:Z
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health')"]
       interval: 30s

@@ -63,3 +63,14 @@ http://localhost:5055
 ## Backups
 
 Use **Manage → Backup & Restore** before applying updates. The SQLite database ZIP is the restore-capable backup. CSV/XLSX exports are useful for review, but the database ZIP is the full backup.
+
+## Server stability defaults
+
+The Docker build is configured for small household self-hosting with SQLite:
+
+- Gunicorn: `1` worker, `4` threads, `60` second timeout.
+- SQLite WAL mode and a `30` second busy timeout are enabled at app startup.
+- Startup database setup is serialised with an instance-folder lock file.
+- Docker Compose mounts `./instance:/app/instance:Z` for Fedora/SELinux compatibility.
+
+These defaults are intended to support multiple household users at once without turning the app into a heavier PostgreSQL deployment.

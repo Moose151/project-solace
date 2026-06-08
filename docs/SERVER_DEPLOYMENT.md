@@ -124,3 +124,41 @@ This folder is intentionally ignored by Git. Do not commit it to GitHub.
 ```bash
 ./scripts/backup-db.sh
 ```
+
+## Fedora Server stability notes
+
+For the Fedora Server deployment, keep the persistent SQLite database in the `instance` folder and mount it with the SELinux relabel flag:
+
+```yaml
+volumes:
+  - ./instance:/app/instance:Z
+```
+
+The production container uses Gunicorn with one worker and four threads:
+
+```dockerfile
+CMD ["gunicorn", "-w", "1", "--threads", "4", "--timeout", "60", "-b", "0.0.0.0:5000", "run:app"]
+```
+
+This is the recommended default for the current SQLite-backed household deployment. It allows multiple browser sessions to use the app at the same time while avoiding the extra SQLite write contention that can come from multiple worker processes.
+
+Project Solace also enables SQLite WAL mode and a 30-second busy timeout at startup. Startup database setup is protected by a lock file in the instance folder so Gunicorn workers cannot race while seeding default data.
+
+Useful server commands:
+
+```bash
+cd /opt/docker/project-solace/app
+docker compose ps
+docker compose logs -f
+docker compose restart
+docker compose down
+docker compose up -d --build
+```
+
+Manual backup before updates:
+
+```bash
+cd /opt/docker/project-solace/app
+mkdir -p /opt/docker/backups/project-solace
+tar -czf /opt/docker/backups/project-solace/project-solace-before-update-$(date +%F-%H%M).tar.gz instance
+```

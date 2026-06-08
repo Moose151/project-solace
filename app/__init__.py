@@ -1,4 +1,6 @@
 import os
+from contextlib import contextmanager
+
 from flask import Flask
 from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
@@ -12,6 +14,29 @@ login_manager.login_view = "main.login"
 csrf = CSRFProtect()
 
 
+@contextmanager
+def startup_database_lock(app):
+    """Serialise startup database setup across Gunicorn workers.
+
+    This prevents two workers from trying to create/seed the SQLite database at
+    the same time during container startup. The lock file lives in the persistent
+    instance folder, so it also works with the Docker volume.
+    """
+    os.makedirs(app.instance_path, exist_ok=True)
+    lock_path = os.path.join(app.instance_path, ".startup.lock")
+
+    with open(lock_path, "w") as lock_file:
+        try:
+            import fcntl
+            fcntl.flock(lock_file, fcntl.LOCK_EX)
+            yield
+        finally:
+            try:
+                fcntl.flock(lock_file, fcntl.LOCK_UN)
+            except Exception:
+                pass
+
+
 def create_app():
     """Create and configure the Project Solace Flask app."""
     app = Flask(__name__, instance_relative_config=True)
@@ -22,6 +47,13 @@ def create_app():
         "sqlite:///" + os.path.join(app.instance_path, "solace.db"),
     )
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+        "connect_args": {
+            "timeout": 30,
+            "check_same_thread": False,
+        },
+        "pool_pre_ping": True,
+    }
     app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
 
     os.makedirs(app.instance_path, exist_ok=True)
@@ -34,11 +66,13 @@ def create_app():
     app.register_blueprint(main)
 
     with app.app_context():
-        db.create_all()
-        apply_lightweight_migrations()
-        seed_default_data()
-        seed_dashboard_widgets()
-        seed_notification_settings()
+        with startup_database_lock(app):
+            configure_sqlite()
+            db.create_all()
+            apply_lightweight_migrations()
+            seed_default_data()
+            seed_dashboard_widgets()
+            seed_notification_settings()
 
     return app
 
@@ -46,6 +80,18 @@ def create_app():
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
+
+
+def configure_sqlite():
+    """Enable safer SQLite behaviour for a small multi-user household app."""
+    uri = db.engine.url.drivername
+    if not uri.startswith("sqlite"):
+        return
+
+    db.session.execute(text("PRAGMA journal_mode=WAL"))
+    db.session.execute(text("PRAGMA synchronous=NORMAL"))
+    db.session.execute(text("PRAGMA busy_timeout=30000"))
+    db.session.commit()
 
 
 def column_exists(table_name, column_name):
@@ -143,20 +189,26 @@ def seed_notification_settings():
         db.session.commit()
 
 def seed_default_data():
-    """Create the first admin, default settings, and starter categories."""
-    if not User.query.first():
-        username = os.environ.get("SOLACE_ADMIN_USERNAME", "admin")
-        password = os.environ.get("SOLACE_ADMIN_PASSWORD", "admin")
-        user = User(
+    """Create default records without duplicating data on restart.
+
+    This function is intentionally idempotent. It checks for existing records
+    before creating them so Docker/Gunicorn restarts do not create duplicate
+    rows or hit the default admin UNIQUE constraint.
+    """
+    username = os.environ.get("SOLACE_ADMIN_USERNAME", "admin")
+    password = os.environ.get("SOLACE_ADMIN_PASSWORD", "admin")
+
+    if not User.query.filter_by(username=username).first():
+        db.session.add(User(
             username=username,
             password_hash=generate_password_hash(password),
             role="admin",
             active=True,
-        )
-        db.session.add(user)
+        ))
+        db.session.commit()
 
     if not Settings.query.first():
-        settings = Settings(
+        db.session.add(Settings(
             household_name="Project Solace",
             budget_year=2026,
             first_payday="2026-01-09",
@@ -166,34 +218,34 @@ def seed_default_data():
             theme="Light",
             setup_checklist_dismissed=False,
             show_help_tips=True,
-        )
-        db.session.add(settings)
+        ))
+        db.session.commit()
 
-    if not Category.query.first():
-        starter_categories = [
-            ("Utilities", "Bill"),
-            ("Insurance", "Bill"),
-            ("Subscriptions", "Bill"),
-            ("Vehicle", "Both"),
-            ("House", "Both"),
-            ("Pets", "Both"),
-            ("Medical", "Both"),
-            ("Christmas", "Purchase"),
-            ("Travel", "Purchase"),
-            ("Other", "Both"),
-        ]
-        for name, category_type in starter_categories:
+    starter_categories = [
+        ("Utilities", "Bill"),
+        ("Insurance", "Bill"),
+        ("Subscriptions", "Bill"),
+        ("Vehicle", "Both"),
+        ("House", "Both"),
+        ("Pets", "Both"),
+        ("Medical", "Both"),
+        ("Christmas", "Purchase"),
+        ("Travel", "Purchase"),
+        ("Other", "Both"),
+    ]
+    for name, category_type in starter_categories:
+        if not Category.query.filter_by(name=name).first():
             db.session.add(Category(name=name, category_type=category_type, active=True))
+    db.session.commit()
 
-
-    if not Bucket.query.first():
-        starter_buckets = [
-            ("Bills", 25, 10, "Bills", 10),
-            ("Savings", 20, 10, "Savings", 20),
-            ("Shared spending", 45, 10, "Spending", 30),
-            ("Individual spending", 10, 10, "Other", 40),
-        ]
-        for name, percentage, rounding_increment, bucket_type, sort_order in starter_buckets:
+    starter_buckets = [
+        ("Bills", 25, 10, "Bills", 10),
+        ("Savings", 20, 10, "Savings", 20),
+        ("Shared spending", 45, 10, "Spending", 30),
+        ("Individual spending", 10, 10, "Other", 40),
+    ]
+    for name, percentage, rounding_increment, bucket_type, sort_order in starter_buckets:
+        if not Bucket.query.filter_by(name=name).first():
             db.session.add(Bucket(
                 name=name,
                 percentage=percentage,
@@ -202,5 +254,5 @@ def seed_default_data():
                 sort_order=sort_order,
                 active=True,
             ))
-
     db.session.commit()
+
