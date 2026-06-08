@@ -517,3 +517,35 @@ html[data-bs-theme="dark"] hr {
   font-size: 0.75rem;
   opacity: 0.75;
 }
+
+/* v17 navigation and action polish --------------------------------------- */
+.quick-link-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: .55rem;
+}
+.quick-links-card .btn {
+  justify-content: center;
+}
+.table-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .4rem;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+.table-actions form { margin: 0; }
+.table-actions .btn { min-width: 4.25rem; }
+
+@media (max-width: 576px) {
+  .table-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .table-actions .btn { width: 100%; }
+}
+
+html[data-bs-theme="dark"] .quick-links-card {
+  background: rgba(31, 41, 55, 0.94);
+}

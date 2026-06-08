@@ -47,6 +47,25 @@
           </div>
         </div>
 
+      {% elif widget.widget_key == 'quick_links' %}
+        <div class="card h-100 quick-links-card">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+              <div>
+                <div class="metric-label">Quick links</div>
+                <h2 class="h5 mb-0">Planning shortcuts</h2>
+              </div>
+              <a href="{{ url_for('main.dashboard_layout') }}" class="btn btn-outline-secondary btn-sm">Hide</a>
+            </div>
+            <div class="quick-link-grid">
+              <a href="{{ url_for('main.bills') }}" class="btn btn-primary w-100">Open bills</a>
+              <a href="{{ url_for('main.new_bill') }}" class="btn btn-outline-primary w-100">Add bill</a>
+              <a href="{{ url_for('main.bill_category_overview') }}" class="btn btn-outline-primary w-100">Category overview</a>
+              <a href="{{ url_for('main.calendar_current') }}" class="btn btn-outline-secondary w-100">Calendar</a>
+            </div>
+          </div>
+        </div>
+
       {% elif widget.widget_key == 'set_aside_summary' %}
         <div class="card metric hero-metric h-100">
           <div class="card-body">

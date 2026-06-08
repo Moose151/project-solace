@@ -150,6 +150,7 @@ def seed_dashboard_widgets():
     """Create default dashboard widgets for modular dashboard layout."""
     defaults = [
         ("setup_checklist", "Setup checklist", True, 5, "wide", "Initial setup prompts. Can be hidden once the app is configured."),
+        ("quick_links", "Quick links", True, 8, "small", "Shortcut buttons for Bills, Add Bill, Calendar, and Category Overview."),
         ("set_aside_summary", "Set-aside summary", True, 10, "wide", "Main fortnightly set-aside number and components."),
         ("income_summary", "Income summary", True, 20, "medium", "Expected household income and remaining amount after bucket transfers."),
         ("bucket_summary", "Bucket summary", True, 30, "medium", "Combined household bucket totals."),
