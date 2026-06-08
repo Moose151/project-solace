@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-3">
+  <div>
+    <h1 class="mb-1">Bill Category Overview</h1>
+    <p class="text-muted mb-0">Average recurring bill cost by category, normalised across weekly, fortnightly, monthly, and yearly periods.</p>
+  </div>
+  <a href="{{ url_for('main.bills') }}" class="btn btn-outline-secondary">Back to bills</a>
+</div>
+
+<div class="card shadow-sm mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-3 align-items-end">
+      <div class="col-12 col-md-auto">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="active" name="active" value="1" {% if active_only %}checked{% endif %}>
+          <label class="form-check-label" for="active">Active bills only</label>
+        </div>
+      </div>
+      <div class="col-12 col-md-auto">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="included" name="included" value="1" {% if include_set_aside_only %}checked{% endif %}>
+          <label class="form-check-label" for="included">Only bills included in set-aside</label>
+        </div>
+      </div>
+      <div class="col-12 col-md-auto">
+        <button class="btn btn-outline-primary" type="submit">Apply</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg-3"><div class="metric-card"><div class="metric-label">Weekly</div><div class="metric-value">{{ settings.currency_symbol }}{{ '%.2f'|format(totals.weekly) }}</div></div></div>
+  <div class="col-6 col-lg-3"><div class="metric-card"><div class="metric-label">Fortnightly</div><div class="metric-value">{{ settings.currency_symbol }}{{ '%.2f'|format(totals.fortnightly) }}</div></div></div>
+  <div class="col-6 col-lg-3"><div class="metric-card"><div class="metric-label">Monthly</div><div class="metric-value">{{ settings.currency_symbol }}{{ '%.2f'|format(totals.monthly) }}</div></div></div>
+  <div class="col-6 col-lg-3"><div class="metric-card"><div class="metric-label">Yearly</div><div class="metric-value">{{ settings.currency_symbol }}{{ '%.2f'|format(totals.yearly) }}</div></div></div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th class="text-end">Bills</th>
+            <th class="text-end">Per week</th>
+            <th class="text-end">Per fortnight</th>
+            <th class="text-end">Per month</th>
+            <th class="text-end">Per year</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td class="fw-semibold">{{ row.category }}</td>
+            <td class="text-end">{{ row.bill_count }}</td>
+            <td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(row.weekly) }}</td>
+            <td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(row.fortnightly) }}</td>
+            <td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(row.monthly) }}</td>
+            <td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(row.yearly) }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="text-center text-muted py-4">No bills match this overview filter.</td></tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th>Total</th>
+            <th class="text-end">{{ totals.bill_count }}</th>
+            <th class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(totals.weekly) }}</th>
+            <th class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(totals.fortnightly) }}</th>
+            <th class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(totals.monthly) }}</th>
+            <th class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(totals.yearly) }}</th>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

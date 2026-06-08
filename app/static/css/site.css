@@ -500,3 +500,20 @@ html[data-bs-theme="dark"] hr {
 .checklist-row {
   gap: .75rem;
 }
+
+.table-sort-link {
+  color: inherit;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.table-sort-link:hover {
+  text-decoration: underline;
+}
+
+.sort-indicator {
+  font-size: 0.75rem;
+  opacity: 0.75;
+}

@@ -1,27 +1,88 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h1>Recurring Bills</h1>
-  <a href="{{ url_for('main.new_bill') }}" class="btn btn-primary">Add bill</a>
+{% macro sort_link(label, key) -%}
+  {% set next_dir = 'desc' if sort_key == key and sort_dir == 'asc' else 'asc' %}
+  <a class="table-sort-link" href="{{ url_for('main.bills', sort=key, dir=next_dir, category=selected_category) }}">
+    {{ label }}
+    {% if sort_key == key %}
+      <span class="sort-indicator">{{ '▲' if sort_dir == 'asc' else '▼' }}</span>
+    {% endif %}
+  </a>
+{%- endmacro %}
+
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-3">
+  <div>
+    <h1 class="mb-1">Recurring Bills</h1>
+    <p class="text-muted mb-0">Sort and filter your recurring bills by amount, category, due date, and set-aside impact.</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('main.bill_category_overview') }}" class="btn btn-outline-primary">Category overview</a>
+    <a href="{{ url_for('main.new_bill') }}" class="btn btn-primary">Add bill</a>
+  </div>
 </div>
-<div class="card shadow-sm"><div class="card-body">
-<div class="table-responsive"><table class="table table-hover align-middle">
-  <thead><tr><th>Name</th><th>Frequency</th><th>Due</th><th>Amount</th><th>Annual</th><th>Per fortnight</th><th>Active</th><th></th></tr></thead>
-  <tbody>
-  {% for bill in bills %}
-    <tr>
-      <td>{{ bill.name }}</td><td>{{ bill.frequency }}</td><td>{{ bill.due_day }}{% if bill.due_month %}/{{ bill.due_month }}{% endif %}</td>
-      <td>{{ settings.currency_symbol }}{{ '%.2f'|format(bill.amount) }}</td>
-      <td>{{ settings.currency_symbol }}{{ '%.2f'|format(annual_cost(bill)) }}</td>
-      <td>{{ settings.currency_symbol }}{{ '%.2f'|format(fortnightly_bill_amount(bill)) }}</td>
-      <td>{{ 'Yes' if bill.active else 'No' }}</td>
-      <td class="text-end">
-        <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.edit_bill', bill_id=bill.id) }}">Edit</a>
-        <form class="d-inline" method="post" action="{{ url_for('main.delete_bill', bill_id=bill.id) }}" onsubmit="return confirm('Delete this bill?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-danger btn-sm">Delete</button></form>
-      </td>
-    </tr>
-  {% endfor %}
-  </tbody>
-</table></div>
-</div></div>
+
+<div class="card shadow-sm mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-3 align-items-end">
+      <input type="hidden" name="sort" value="{{ sort_key }}">
+      <input type="hidden" name="dir" value="{{ sort_dir }}">
+      <div class="col-12 col-md-5 col-lg-4">
+        <label class="form-label" for="category">Filter by category</label>
+        <select class="form-select" id="category" name="category">
+          <option value="all" {% if selected_category == 'all' %}selected{% endif %}>All categories</option>
+          <option value="uncategorised" {% if selected_category == 'uncategorised' %}selected{% endif %}>Uncategorised</option>
+          {% for category in categories %}
+            <option value="{{ category.id }}" {% if selected_category|string == category.id|string %}selected{% endif %}>{{ category.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-md-auto d-flex gap-2">
+        <button class="btn btn-outline-primary" type="submit">Apply filter</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('main.bills') }}">Reset</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>{{ sort_link('Name', 'name') }}</th>
+            <th>{{ sort_link('Category', 'category') }}</th>
+            <th>{{ sort_link('Frequency', 'frequency') }}</th>
+            <th>{{ sort_link('Due', 'due') }}</th>
+            <th class="text-end">{{ sort_link('Amount', 'amount') }}</th>
+            <th class="text-end">{{ sort_link('Annual', 'annual') }}</th>
+            <th class="text-end">{{ sort_link('Per fortnight', 'fortnightly') }}</th>
+            <th>{{ sort_link('Active', 'active') }}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for bill in bills %}
+          <tr>
+            <td class="fw-semibold">{{ bill.name }}</td>
+            <td>{% if bill.category %}<span class="badge badge-soft">{{ bill.category.name }}</span>{% else %}<span class="text-muted">Uncategorised</span>{% endif %}</td>
+            <td>{{ bill.frequency }}</td>
+            <td>{{ bill.due_day }}{% if bill.due_month %}/{{ bill.due_month }}{% endif %}</td>
+            <td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(bill.amount) }}</td>
+            <td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(annual_cost(bill)) }}</td>
+            <td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(fortnightly_bill_amount(bill)) }}</td>
+            <td>{{ 'Yes' if bill.active else 'No' }}</td>
+            <td class="text-end">
+              <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.edit_bill', bill_id=bill.id) }}">Edit</a>
+              <form class="d-inline" method="post" action="{{ url_for('main.delete_bill', bill_id=bill.id) }}" onsubmit="return confirm('Delete this bill?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-danger btn-sm">Delete</button></form>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="9" class="text-center text-muted py-4">No bills match the selected filter.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
 {% endblock %}

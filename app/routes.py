@@ -513,8 +513,111 @@ def settings_page():
 @main.route("/bills")
 @login_required
 def bills():
-    rows = RecurringBill.query.order_by(RecurringBill.name).all()
-    return render_template("bills.html", bills=rows, annual_cost=annual_cost, fortnightly_bill_amount=fortnightly_bill_amount)
+    """Recurring bill list with column sorting and category filtering."""
+    sort_key = request.args.get("sort", "name")
+    sort_dir = request.args.get("dir", "asc")
+    category_filter = request.args.get("category", "all")
+
+    rows = RecurringBill.query.all()
+
+    if category_filter not in [None, "", "all"]:
+        if category_filter == "uncategorised":
+            rows = [bill for bill in rows if not bill.category_id]
+        else:
+            try:
+                category_id = int(category_filter)
+                rows = [bill for bill in rows if bill.category_id == category_id]
+            except ValueError:
+                category_filter = "all"
+
+    def bill_sort_value(bill):
+        category_name = bill.category.name if bill.category else "Uncategorised"
+        values = {
+            "name": (bill.name or "").lower(),
+            "category": category_name.lower(),
+            "frequency": bill.frequency or "",
+            "due": ((bill.due_month or 0), (bill.due_day or 0), (bill.name or "").lower()),
+            "amount": float(bill.amount or 0),
+            "annual": annual_cost(bill),
+            "fortnightly": fortnightly_bill_amount(bill),
+            "active": 0 if bill.active else 1,
+        }
+        return values.get(sort_key, values["name"])
+
+    reverse = sort_dir == "desc"
+    rows = sorted(rows, key=bill_sort_value, reverse=reverse)
+
+    categories = Category.query.filter(Category.active.is_(True)).order_by(Category.name).all()
+
+    return render_template(
+        "bills.html",
+        bills=rows,
+        categories=categories,
+        selected_category=category_filter or "all",
+        sort_key=sort_key,
+        sort_dir=sort_dir,
+        annual_cost=annual_cost,
+        fortnightly_bill_amount=fortnightly_bill_amount,
+    )
+
+
+@main.route("/bills/category-overview")
+@login_required
+def bill_category_overview():
+    """Show recurring bill spending totals grouped by category."""
+    active_only = request.args.get("active", "1") != "0"
+    include_set_aside_only = request.args.get("included", "0") == "1"
+
+    rows = RecurringBill.query.all()
+    if active_only:
+        rows = [bill for bill in rows if bill.active]
+    if include_set_aside_only:
+        rows = [bill for bill in rows if bill.include_in_set_aside]
+
+    grouped = {}
+    for bill in rows:
+        category_name = bill.category.name if bill.category else "Uncategorised"
+        if category_name not in grouped:
+            grouped[category_name] = {
+                "category": category_name,
+                "bill_count": 0,
+                "weekly": 0,
+                "fortnightly": 0,
+                "monthly": 0,
+                "yearly": 0,
+            }
+        yearly = annual_cost(bill)
+        grouped[category_name]["bill_count"] += 1
+        grouped[category_name]["weekly"] += yearly / 52
+        grouped[category_name]["fortnightly"] += yearly / 26
+        grouped[category_name]["monthly"] += yearly / 12
+        grouped[category_name]["yearly"] += yearly
+
+    summary_rows = []
+    for row in grouped.values():
+        row["weekly"] = money(row["weekly"])
+        row["fortnightly"] = money(row["fortnightly"])
+        row["monthly"] = money(row["monthly"])
+        row["yearly"] = money(row["yearly"])
+        summary_rows.append(row)
+
+    summary_rows = sorted(summary_rows, key=lambda row: row["yearly"], reverse=True)
+
+    totals = {
+        "bill_count": sum(row["bill_count"] for row in summary_rows),
+        "weekly": money(sum(row["weekly"] for row in summary_rows)),
+        "fortnightly": money(sum(row["fortnightly"] for row in summary_rows)),
+        "monthly": money(sum(row["monthly"] for row in summary_rows)),
+        "yearly": money(sum(row["yearly"] for row in summary_rows)),
+    }
+
+    return render_template(
+        "bill_category_overview.html",
+        rows=summary_rows,
+        totals=totals,
+        active_only=active_only,
+        include_set_aside_only=include_set_aside_only,
+    )
 
 
 @main.route("/bills/new", methods=["GET", "POST"])
