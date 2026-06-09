@@ -79,6 +79,16 @@
 
   {% block content %}{% endblock %}
 </main>
+{% if current_user.is_authenticated %}
+<nav class="mobile-tabbar" aria-label="Mobile primary navigation">
+  <a href="{{ url_for('main.dashboard') }}"><span class="mobile-tabbar-icon">⌂</span><span>Home</span></a>
+  <a href="{{ url_for('main.bills') }}"><span class="mobile-tabbar-icon">▦</span><span>Bills</span></a>
+  <a href="{{ url_for('main.payday_checklist') }}"><span class="mobile-tabbar-icon">✓</span><span>Payday</span></a>
+  <a href="{{ url_for('main.buckets') }}"><span class="mobile-tabbar-icon">◧</span><span>Buckets</span></a>
+  <a href="{{ url_for('main.calendar_current') }}"><span class="mobile-tabbar-icon">◷</span><span>Calendar</span></a>
+</nav>
+{% endif %}
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
   document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
