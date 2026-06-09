@@ -3,92 +3,63 @@
 {% block content %}
 <div class="page-header">
   <div>
-    <h1 class="mb-1">Payday checklist</h1>
-    <div class="page-kicker">{{ cycle_start.strftime('%d %b %Y') }} – {{ cycle_end.strftime('%d %b %Y') }} · next payday {{ next_payday.strftime('%d %b %Y') }}</div>
+    <h1 class="mb-1">Payday Checklist</h1>
+    <div class="page-kicker">{{ cycle_start.strftime('%d %b') }} – {{ cycle_end.strftime('%d %b %Y') }} · {{ 'Next cycle preview' if cycle_choice == 'next' else 'Current cycle' }}</div>
   </div>
-  <div class="action-bar"><a href="{{ url_for('main.pay_split') }}" class="btn btn-outline-primary">View pay split</a></div>
-</div>
-
-<div class="row g-4">
-  <div class="col-lg-5">
-    <div class="card h-100"><div class="card-body">
-      <div class="metric-label">Expected household income</div>
-      <div class="display-6 fw-semibold">{{ settings.currency_symbol }}{{ '%.2f'|format(income_total) }}</div>
-      <hr>
-      <h2 class="h6">Income in this cycle</h2>
-      {% if income_items %}
-      <div class="list-group list-group-flush">
-        {% for item in income_items %}
-        <div class="list-group-item px-0 d-flex justify-content-between"><span>{{ item.source.owner_name }} · {{ item.source.name }}<br><small class="text-muted">{{ item.date.strftime('%d %b %Y') }}</small></span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</strong></div>
-        {% endfor %}
-      </div>
-      {% else %}<p class="text-muted mb-0">No income sources fall inside this pay cycle.</p>{% endif %}
-    </div></div>
-  </div>
-  <div class="col-lg-7">
-    <form method="post" class="card h-100"><div class="card-body">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div class="d-flex justify-content-between align-items-start mb-3">
-        <div><h2 class="h5 mb-1">Transfers and checks</h2><p class="text-muted mb-0">Tick each item off as you complete it on payday.</p></div>
-        <button class="btn btn-primary">Save checklist</button>
-      </div>
-      <div class="checklist-stack">
-      {% for item in checklist_items %}
-        <div class="checklist-row">
-          <input class="form-check-input" type="checkbox" name="completed_{{ item.id }}" {% if item.completed %}checked{% endif %}>
-          <span class="flex-grow-1">{{ item.label }}{% if item.completed_at %}<br><small class="text-muted">Completed {{ item.completed_at }}</small>{% endif %}</span>
-          {% if item.amount %}<strong>{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</strong>{% endif %}
-          {% if item.item_key.startswith('transfer_') %}
-            <button type="submit" form="hide-item-{{ item.id }}" class="btn btn-link btn-sm text-muted p-0 ms-2">Hide if automatic</button>
-          {% endif %}
-        </div>
-      {% endfor %}
-      </div>
-    </div></form>
+  <div class="action-bar">
+    <a class="btn btn-sm {{ 'btn-primary' if cycle_choice != 'next' else 'btn-outline-primary' }}" href="{{ url_for('main.payday_checklist') }}">Current</a>
+    <a class="btn btn-sm {{ 'btn-primary' if cycle_choice == 'next' else 'btn-outline-primary' }}" href="{{ url_for('main.payday_checklist', cycle='next') }}">Next cycle</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.cycle_closeout', cycle=cycle_choice) }}">Closeout</a>
   </div>
 </div>
 
-{% for item in checklist_items %}
-  {% if item.item_key.startswith('transfer_') %}
-  <form id="hide-item-{{ item.id }}" method="post" action="{{ url_for('main.hide_payday_checklist_item', item_id=item.id) }}" onsubmit="return confirm('Hide this automatic transfer from future payday checklists?');">
+<div class="row g-3 mb-4">
+  <div class="col-md-4"><div class="card metric"><div class="card-body"><div class="metric-label">Household income</div><div class="h3">{{ settings.currency_symbol }}{{ '%.2f'|format(income_total) }}</div></div></div></div>
+  <div class="col-md-4"><div class="card metric"><div class="card-body"><div class="metric-label">Bills due this cycle</div><div class="h3">{{ settings.currency_symbol }}{{ '%.2f'|format(cycle_unpaid|sum(attribute='amount')) }}</div><small class="text-muted">Included through {{ due_cutoff.strftime('%d %b') }}</small></div></div></div>
+  <div class="col-md-4"><div class="card metric"><div class="card-body"><div class="metric-label">Next payday</div><div class="h3">{{ next_payday.strftime('%d %b') }}</div></div></div></div>
+</div>
+
+<div class="row g-3 mb-4">
+  {% for person in person_bucket_allocations %}
+  <div class="col-lg-6"><div class="card shadow-sm h-100"><div class="card-body">
+    <div class="d-flex justify-content-between align-items-start mb-3"><div><h2 class="h4 mb-0">{{ person.person }}</h2><div class="text-muted">{{ settings.currency_symbol }}{{ '%.2f'|format(person.income_total) }} income this cycle</div></div><div class="text-end"><div class="metric-label">Transfer total</div><div class="h4">{{ settings.currency_symbol }}{{ '%.2f'|format(person.bucket_total) }}</div></div></div>
+    {% for row in person.bucket_allocations %}<div class="mini-stat"><span>{{ row.bucket.name }}</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(row.rounded_amount) }}</strong></div>{% endfor %}
+    <div class="mini-stat total"><span>Remaining / individual spending</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(person.remaining) }}</strong></div>
+  </div></div></div>
+  {% endfor %}
+</div>
+
+<div class="card"><div class="card-body">
+  <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="d-flex justify-content-between align-items-center gap-3 mb-3"><div><h2 class="h5 mb-1">Checklist</h2><p class="text-muted mb-0">Tick off manual transfers or review steps for this pay cycle.</p></div><button class="btn btn-primary">Save checklist</button></div>
+    <div class="checklist-stack">
+    {% for item in checklist_items %}
+      <div class="checklist-row">
+        <input class="form-check-input" type="checkbox" name="completed_{{ item.id }}" {% if item.completed %}checked{% endif %}>
+        <span class="flex-grow-1">{{ item.label }}{% if item.completed_at %}<br><small class="text-muted">Completed {{ item.completed_at }}</small>{% endif %}</span>
+        {% if item.amount %}<strong>{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</strong>{% endif %}
+        {% if item.item_key.startswith('transfer_') %}<button type="submit" form="hide-item-{{ item.id }}" class="btn btn-link btn-sm text-muted p-0 ms-2">Hide if automatic</button>{% endif %}
+      </div>
+    {% else %}<p class="text-muted mb-0">No checklist items generated.</p>{% endfor %}
+    </div>
   </form>
-  {% endif %}
-{% endfor %}
+</div></div>
+
+{% for item in checklist_items %}{% if item.item_key.startswith('transfer_') %}
+<form id="hide-item-{{ item.id }}" method="post" action="{{ url_for('main.hide_payday_checklist_item', item_id=item.id) }}" onsubmit="return confirm('Hide this automatic transfer from future payday checklists?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"></form>
+{% endif %}{% endfor %}
+
+{% if cycle_unpaid %}
+<div class="card mt-4"><div class="card-body"><h2 class="h5">Unpaid bills this cycle</h2><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Date</th><th>Bill</th><th class="text-end">Amount</th></tr></thead><tbody>{% for item in cycle_unpaid %}<tr><td>{{ item.due_date }}</td><td><a href="{{ url_for('main.bill_detail', bill_id=item.bill.id) }}">{{ item.bill.name }}</a></td><td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</td></tr>{% endfor %}</tbody></table></div></div></div>
+{% endif %}
 
 {% if hidden_preferences %}
 <div class="card mt-4"><div class="card-body">
   <h2 class="h5">Hidden automatic transfers {{ help_tip('These items are not shown in the active payday checklist. Restore them if the transfer stops being automatic.') }}</h2>
   <div class="list-group list-group-flush">
-    {% for pref in hidden_preferences %}
-    <div class="list-group-item px-0 d-flex justify-content-between align-items-center gap-3">
-      <span>{{ pref.label }}</span>
-      <form method="post" action="{{ url_for('main.unhide_payday_checklist_item', item_key=pref.item_key) }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button class="btn btn-outline-secondary btn-sm">Restore</button>
-      </form>
-    </div>
-    {% endfor %}
+    {% for pref in hidden_preferences %}<div class="list-group-item px-0 d-flex justify-content-between align-items-center gap-3"><span>{{ pref.label }}</span><form method="post" action="{{ url_for('main.unhide_payday_checklist_item', item_key=pref.item_key) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-secondary btn-sm">Restore</button></form></div>{% endfor %}
   </div>
 </div></div>
 {% endif %}
-
-<div class="card mt-4"><div class="card-body">
-  <h2 class="h5">Per-person transfer summary</h2>
-  {% if person_bucket_allocations %}
-  <div class="row g-3">
-    {% for person in person_bucket_allocations %}
-    <div class="col-lg-6"><div class="soft-panel h-100">
-      <div class="d-flex justify-content-between"><strong>{{ person.person }}</strong><span>{{ settings.currency_symbol }}{{ '%.2f'|format(person.income_total) }} income</span></div>
-      <hr>
-      {% for row in person.bucket_allocations %}
-      <div class="mini-stat"><span>{{ row.bucket.name }}</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(row.rounded_amount) }}</strong></div>
-      {% endfor %}
-      <div class="mini-stat total"><span>Total buckets</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(person.bucket_total) }}</strong></div>
-      <div class="mini-stat"><span>Remaining</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(person.remaining) }}</strong></div>
-    </div></div>
-    {% endfor %}
-  </div>
-  {% else %}<p class="text-muted mb-0">Add income sources with a person name to see individual transfer cards.</p>{% endif %}
-</div></div>
 {% endblock %}

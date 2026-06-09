@@ -115,6 +115,9 @@ def apply_lightweight_migrations():
     if not column_exists("settings", "show_help_tips"):
         db.session.execute(text("ALTER TABLE settings ADD COLUMN show_help_tips BOOLEAN NOT NULL DEFAULT 1"))
 
+    if not column_exists("settings", "payday_bill_handling"):
+        db.session.execute(text("ALTER TABLE settings ADD COLUMN payday_bill_handling VARCHAR(20) NOT NULL DEFAULT 'new_cycle'"))
+
     if not column_exists("bucket", "cap_to_remaining"):
         db.session.execute(text("ALTER TABLE bucket ADD COLUMN cap_to_remaining BOOLEAN NOT NULL DEFAULT 0"))
 
@@ -219,6 +222,7 @@ def seed_default_data():
             theme="Light",
             setup_checklist_dismissed=False,
             show_help_tips=True,
+            payday_bill_handling="new_cycle",
         ))
         db.session.commit()
 

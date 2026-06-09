@@ -47,10 +47,13 @@
             </div>
             <div class="calendar-events">
               {% for event in day.events %}
-                <div class="calendar-event {{ 'income-event' if event.type == 'income' else 'bill-event' }} {{ 'paid-event' if event.type == 'bill' and event.status == 'Paid' else '' }} {{ 'skipped-event' if event.type == 'bill' and event.status == 'Skipped' else '' }}">
+                {% if event.type == 'bill' %}<a class="calendar-event calendar-event-link bill-event {{ 'paid-event' if event.status == 'Paid' else '' }} {{ 'skipped-event' if event.status == 'Skipped' else '' }}" href="{{ url_for('main.bill_detail', bill_id=event.occurrence.bill.id) }}">
                   <div class="event-title">{{ event.title }}</div>
-                  <div class="event-meta">{{ settings.currency_symbol }}{{ '%.2f'|format(event.amount) }}{% if event.type == 'bill' %} · {{ event.status }}{% endif %}</div>
-                </div>
+                  <div class="event-meta">{{ settings.currency_symbol }}{{ '%.2f'|format(event.amount) }} · {{ event.status }}</div>
+                </a>{% else %}<div class="calendar-event income-event">
+                  <div class="event-title">{{ event.title }}</div>
+                  <div class="event-meta">{{ settings.currency_symbol }}{{ '%.2f'|format(event.amount) }}</div>
+                </div>{% endif %}
               {% else %}
                 {% if day.in_month %}<div class="calendar-empty">—</div>{% endif %}
               {% endfor %}
@@ -70,7 +73,7 @@
   <tr>
     <td>{{ event.date.strftime('%d/%m/%Y') }}</td>
     <td><span class="badge {{ 'income-pill' if event.type == 'income' else 'bill-pill' }}">{{ 'Income' if event.type == 'income' else 'Bill' }}</span></td>
-    <td>{{ event.title }}</td>
+    <td>{% if event.type == 'bill' %}<a href="{{ url_for('main.bill_detail', bill_id=event.occurrence.bill.id) }}">{{ event.title }}</a>{% else %}{{ event.title }}{% endif %}</td>
     <td>{% if event.type == 'income' %}{{ event.source.owner_name }}{% else %}{{ event.category }}{% endif %}</td>
     <td>{{ settings.currency_symbol }}{{ '%.2f'|format(event.amount) }}</td>
     <td>{% if event.type == 'bill' %}<span class="badge status-badge {{ 'status-paid' if event.status == 'Paid' else 'status-skipped' if event.status == 'Skipped' else 'status-upcoming' }}">{{ event.status }}</span>{% else %}<span class="text-muted">Expected</span>{% endif %}</td>

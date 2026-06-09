@@ -21,6 +21,7 @@ class SettingsForm(FlaskForm):
     currency_symbol = StringField("Currency symbol", validators=[DataRequired(), Length(max=5)])
     theme = SelectField("Theme", choices=[("Light", "Light"), ("Dark", "Dark"), ("Auto", "Auto")])
     show_help_tips = BooleanField("Show help tips", default=True, description="Shows small ? icons beside optional guidance. Important warnings are still shown even when this is off.")
+    payday_bill_handling = SelectField("Bills due on payday belong to", choices=[("new_cycle", "New pay cycle"), ("previous_cycle", "Previous pay cycle")], description="Choose whether a bill due on payday should appear in the cycle that just ended or the new cycle starting on payday.")
     submit = SubmitField("Save settings")
 
 
@@ -147,3 +148,8 @@ class NotificationSettingsForm(FlaskForm):
     token = StringField("Token", validators=[Optional(), Length(max=255)])
     notes = TextAreaField("Notes", validators=[Optional()])
     submit = SubmitField("Save notification settings")
+
+
+class CycleCloseoutForm(FlaskForm):
+    notes = TextAreaField("Closeout notes", validators=[Optional()])
+    submit = SubmitField("Close cycle")

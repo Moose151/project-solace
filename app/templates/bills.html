@@ -49,7 +49,7 @@
     <article class="mobile-list-card">
       <div class="mobile-list-card-main">
         <div>
-          <div class="mobile-list-title">{{ bill.name }}</div>
+          <a class="mobile-list-title" href="{{ url_for('main.bill_detail', bill_id=bill.id) }}">{{ bill.name }}</a>
           <div class="mobile-list-meta">
             {% if bill.category %}{{ bill.category.name }} · {% else %}Uncategorised · {% endif %}
             {{ bill.frequency }} · First due {{ bill.start_date }}
@@ -62,6 +62,7 @@
         <span>Fortnight <strong>{{ settings.currency_symbol }}{{ '%.2f'|format(fortnightly_bill_amount(bill)) }}</strong></span>
       </div>
       <div class="mobile-list-actions">
+        <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.bill_detail', bill_id=bill.id) }}">View</a>
         <a class="btn btn-outline-primary btn-sm" href="{{ url_for('main.edit_bill', bill_id=bill.id) }}">Edit</a>
         <form method="post" action="{{ url_for('main.delete_bill', bill_id=bill.id) }}" onsubmit="return confirm('Delete this bill?')">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -94,7 +95,7 @@
         <tbody>
         {% for bill in bills %}
           <tr>
-            <td class="fw-semibold">{{ bill.name }}</td>
+            <td class="fw-semibold"><a href="{{ url_for('main.bill_detail', bill_id=bill.id) }}">{{ bill.name }}</a></td>
             <td>{% if bill.category %}<span class="badge badge-soft">{{ bill.category.name }}</span>{% else %}<span class="text-muted">Uncategorised</span>{% endif %}</td>
             <td>{{ bill.frequency }}</td>
             <td>{{ bill.start_date }}</td>
@@ -103,6 +104,7 @@
             <td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(fortnightly_bill_amount(bill)) }}</td>
             <td>{{ 'Yes' if bill.active else 'No' }}</td>
             <td class="text-end">
+              <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.bill_detail', bill_id=bill.id) }}">View</a>
               <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.edit_bill', bill_id=bill.id) }}">Edit</a>
               <form class="d-inline" method="post" action="{{ url_for('main.delete_bill', bill_id=bill.id) }}" onsubmit="return confirm('Delete this bill?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-danger btn-sm">Delete</button></form>
             </td>

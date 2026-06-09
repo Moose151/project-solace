@@ -11,8 +11,8 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request,
 from flask_login import login_user, logout_user, login_required
 from werkzeug.security import check_password_hash
 
-from .models import db, User, Settings, Category, RecurringBill, BillOccurrence, PlannedPurchase, AccountBalanceSnapshot, IncomeSource, Bucket, DashboardWidget, PaydayChecklistItem, PaydayChecklistPreference, AuditLog, NotificationSetting
-from .forms import LoginForm, SettingsForm, CategoryForm, RecurringBillForm, PlannedPurchaseForm, AccountBalanceForm, IncomeSourceForm, BucketForm, NotificationSettingsForm
+from .models import db, User, Settings, Category, RecurringBill, BillOccurrence, PlannedPurchase, AccountBalanceSnapshot, IncomeSource, Bucket, DashboardWidget, PaydayChecklistItem, PaydayChecklistPreference, AuditLog, NotificationSetting, CycleCloseout
+from .forms import LoginForm, SettingsForm, CategoryForm, RecurringBillForm, PlannedPurchaseForm, AccountBalanceForm, IncomeSourceForm, BucketForm, NotificationSettingsForm, CycleCloseoutForm
 from .budget_engine import (
     annual_cost, fortnightly_bill_amount, generate_bill_dates,
     planned_purchase_fortnightly_amount, current_pay_cycle, household_pay_cycle, money, parse_date, income_for_cycle,
@@ -324,6 +324,51 @@ def get_dashboard_widgets():
     return widgets, enabled
 
 
+
+
+def get_cycle_window(settings, income_sources, offset=0, today=None):
+    """Return a household pay-cycle window, optionally shifted forward/back."""
+    today = today or date.today()
+    cycle_start, cycle_end, next_payday = get_cycle_window(settings, income_sources, today=today)
+    if offset:
+        shift = timedelta(days=14 * int(offset))
+        cycle_start = cycle_start + shift
+        cycle_end = cycle_end + shift
+        next_payday = next_payday + shift
+    return cycle_start, cycle_end, next_payday
+
+
+def cycle_bill_cutoff(settings, cycle_end, next_payday):
+    """Return the final bill date included in a pay cycle.
+
+    By default, bills due on payday belong to the new cycle. Some households
+    may prefer the previous cycle, so this is configurable in Settings.
+    """
+    if getattr(settings, "payday_bill_handling", "new_cycle") == "previous_cycle":
+        return next_payday
+    return cycle_end
+
+
+def get_cycle_occurrences(settings, cycle_start, cycle_end, next_payday, status=None):
+    cutoff = cycle_bill_cutoff(settings, cycle_end, next_payday)
+    query = BillOccurrence.query.filter(
+        BillOccurrence.due_date >= cycle_start.isoformat(),
+        BillOccurrence.due_date <= cutoff.isoformat(),
+    )
+    if status:
+        query = query.filter(BillOccurrence.status == status)
+    return query.order_by(BillOccurrence.due_date, BillOccurrence.id).all()
+
+
+def get_or_create_cycle_closeout(cycle_start, cycle_end):
+    closeout = CycleCloseout.query.filter_by(cycle_start=cycle_start.isoformat()).first()
+    if not closeout:
+        closeout = CycleCloseout(cycle_start=cycle_start.isoformat(), cycle_end=cycle_end.isoformat(), status="Open")
+        db.session.add(closeout)
+        db.session.flush()
+    return closeout
+
+
 @main.context_processor
 def inject_globals():
     settings = get_settings()
@@ -388,12 +433,12 @@ def dashboard():
 
     notifications = NotificationSetting.query.first()
 
-    # Bills shown in the current pay cycle should stop at the cycle end.
-    # The next payday itself belongs to the next cycle, so including
-    # next_payday here made bills due on payday appear in the previous cycle.
+    # Upcoming bills for this pay cycle. By default, bills due on payday
+    # belong to the new cycle, but Settings can switch that behaviour.
+    due_cutoff = cycle_bill_cutoff(settings, cycle_end, next_payday)
     due_before_next_payday = BillOccurrence.query.filter(
         BillOccurrence.due_date >= today.isoformat(),
-        BillOccurrence.due_date <= cycle_end.isoformat(),
+        BillOccurrence.due_date <= due_cutoff.isoformat(),
         BillOccurrence.status == "Upcoming",
     ).order_by(BillOccurrence.due_date).all()
 
@@ -433,6 +478,7 @@ def dashboard():
         cycle_start=cycle_start,
         cycle_end=cycle_end,
         next_payday=next_payday,
+        due_cutoff=due_cutoff,
         due_before_next_payday=due_before_next_payday,
         due_next_30_days=due_next_30_days,
         overdue=overdue,
@@ -709,6 +755,109 @@ def delete_bill(bill_id):
     return redirect(url_for("main.bills"))
 
 
+
+@main.route("/bills/<int:bill_id>")
+@login_required
+def bill_detail(bill_id):
+    bill = db.session.get(RecurringBill, bill_id)
+    if not bill:
+        flash("Bill not found.", "warning")
+        return redirect(url_for("main.bills"))
+    today_iso = date.today().isoformat()
+    upcoming = BillOccurrence.query.filter(
+        BillOccurrence.recurring_bill_id == bill.id,
+        BillOccurrence.due_date >= today_iso,
+    ).order_by(BillOccurrence.due_date).limit(12).all()
+    history = BillOccurrence.query.filter(
+        BillOccurrence.recurring_bill_id == bill.id,
+        BillOccurrence.due_date < today_iso,
+    ).order_by(BillOccurrence.due_date.desc()).limit(12).all()
+    next_occurrence = upcoming[0] if upcoming else None
+    return render_template(
+        "bill_detail.html",
+        bill=bill,
+        upcoming=upcoming,
+        history=history,
+        next_occurrence=next_occurrence,
+        annual=annual_cost(bill),
+        per_fortnight=fortnightly_bill_amount(bill),
+    )
+
+
+@main.route("/cycle-closeout", methods=["GET", "POST"])
+@login_required
+def cycle_closeout():
+    settings = get_settings()
+    cycle_choice = request.args.get("cycle", "current")
+    cycle_offset = 1 if cycle_choice == "next" else 0
+    income_sources = IncomeSource.query.filter_by(active=True).order_by(IncomeSource.next_pay_date, IncomeSource.name).all()
+    cycle_start, cycle_end, next_payday = get_cycle_window(settings, income_sources, offset=cycle_offset)
+    closeout = get_or_create_cycle_closeout(cycle_start, cycle_end)
+    form = CycleCloseoutForm(obj=closeout)
+
+    occurrences = get_cycle_occurrences(settings, cycle_start, cycle_end, next_payday)
+    paid = [o for o in occurrences if o.status == "Paid"]
+    skipped = [o for o in occurrences if o.status == "Skipped"]
+    unpaid = [o for o in occurrences if o.status == "Upcoming"]
+    income_items, income_total = income_for_cycle(income_sources, cycle_start, cycle_end)
+    buckets = Bucket.query.filter_by(active=True).order_by(Bucket.sort_order, Bucket.name).all()
+    bucket_allocations = calculate_bucket_allocations(buckets, income_total)
+    person_bucket_allocations = calculate_person_bucket_allocations(income_items, buckets, income_total)
+    checklist_items = ensure_payday_checklist_items(settings, cycle_start, income_items, person_bucket_allocations, bucket_allocations)
+
+    if form.validate_on_submit():
+        closeout.notes = form.notes.data
+        closeout.status = "Closed"
+        closeout.closed_at = datetime.now().isoformat(timespec="seconds")
+        audit("close_cycle", "CycleCloseout", cycle_start.isoformat(), f"Closed pay cycle {cycle_start.isoformat()} to {cycle_end.isoformat()}")
+        db.session.commit()
+        flash("Pay cycle closed.", "success")
+        return redirect(url_for("main.cycle_closeout", cycle=cycle_choice))
+
+    return render_template(
+        "cycle_closeout.html",
+        form=form,
+        cycle_choice=cycle_choice,
+        cycle_start=cycle_start,
+        cycle_end=cycle_end,
+        next_payday=next_payday,
+        closeout=closeout,
+        occurrences=occurrences,
+        paid=paid,
+        skipped=skipped,
+        unpaid=unpaid,
+        income_items=income_items,
+        income_total=income_total,
+        bucket_allocations=bucket_allocations,
+        person_bucket_allocations=person_bucket_allocations,
+        checklist_items=checklist_items,
+    )
+
+
+@main.route("/health-check")
+@login_required
+def health_check_page():
+    settings = get_settings()
+    checks = []
+    active_bills = RecurringBill.query.filter_by(active=True).all()
+    active_income = IncomeSource.query.filter_by(active=True).all()
+    active_buckets = Bucket.query.filter_by(active=True).order_by(Bucket.sort_order, Bucket.name).all()
+    overdue = BillOccurrence.query.filter(BillOccurrence.due_date < date.today().isoformat(), BillOccurrence.status == "Upcoming").count()
+
+    checks.append({"status": "ok" if active_income else "warning", "title": "Income sources", "detail": "At least one active income source is configured." if active_income else "No active income sources are configured."})
+    checks.append({"status": "ok" if active_bills else "warning", "title": "Recurring bills", "detail": f"{len(active_bills)} active recurring bills found." if active_bills else "No active recurring bills are configured."})
+    uncategorised = [b for b in active_bills if not b.category_id]
+    checks.append({"status": "ok" if not uncategorised else "warning", "title": "Bill categories", "detail": "All active bills have categories." if not uncategorised else f"{len(uncategorised)} active bills are uncategorised."})
+    capped = [b for b in active_buckets if b.cap_to_remaining]
+    checks.append({"status": "ok" if len(capped) <= 1 else "danger", "title": "Remainder bucket", "detail": "Remainder bucket rule is valid." if len(capped) <= 1 else "More than one active bucket uses the remainder option."})
+    percentage_total = money(sum(b.percentage for b in active_buckets if b.fixed_amount in [None, ""]))
+    checks.append({"status": "ok" if 95 <= percentage_total <= 105 else "warning", "title": "Percentage buckets", "detail": f"Active percentage bucket total is {percentage_total:.2f}%."})
+    checks.append({"status": "ok" if overdue == 0 else "warning", "title": "Overdue bills", "detail": "No overdue unpaid bills." if overdue == 0 else f"{overdue} bills are overdue and unpaid."})
+    checks.append({"status": "ok" if getattr(settings, "payday_bill_handling", "new_cycle") in ["new_cycle", "previous_cycle"] else "warning", "title": "Payday bill setting", "detail": "Bills due on payday handling is configured."})
+
+    return render_template("health_check.html", checks=checks)
+
+
 @main.route("/purchases")
 @login_required
 def purchases():
@@ -933,12 +1082,11 @@ def skip_occurrence(occurrence_id):
 @login_required
 def pay_cycle():
     settings = get_settings()
+    cycle_choice = request.args.get("cycle", "current")
+    cycle_offset = 1 if cycle_choice == "next" else 0
     income_sources = IncomeSource.query.filter_by(active=True).order_by(IncomeSource.next_pay_date, IncomeSource.name).all()
-    cycle_start, cycle_end, next_payday = household_pay_cycle(settings.first_payday, income_sources)
-    occurrences = BillOccurrence.query.filter(
-        BillOccurrence.due_date >= cycle_start.isoformat(),
-        BillOccurrence.due_date <= cycle_end.isoformat(),
-    ).order_by(BillOccurrence.due_date).all()
+    cycle_start, cycle_end, next_payday = get_cycle_window(settings, income_sources, offset=cycle_offset)
+    occurrences = get_cycle_occurrences(settings, cycle_start, cycle_end, next_payday)
 
     bills_due = money(sum(o.amount for o in occurrences if o.status != "Paid"))
     active_bills = RecurringBill.query.filter_by(active=True).all()
@@ -950,12 +1098,16 @@ def pay_cycle():
     buckets = Bucket.query.filter_by(active=True).order_by(Bucket.sort_order, Bucket.name).all()
     bucket_allocations = calculate_bucket_allocations(buckets, income_total)
     person_bucket_allocations = calculate_person_bucket_allocations(income_items, buckets, income_total)
+    closeout = CycleCloseout.query.filter_by(cycle_start=cycle_start.isoformat()).first()
 
     return render_template(
         "pay_cycle.html",
+        cycle_choice=cycle_choice,
         cycle_start=cycle_start,
         cycle_end=cycle_end,
         next_payday=next_payday,
+        due_cutoff=cycle_bill_cutoff(settings, cycle_end, next_payday),
+        closeout=closeout,
         occurrences=occurrences,
         bills_due=bills_due,
         recurring_average=recurring_average,
@@ -1193,14 +1345,18 @@ def account_balance():
 @login_required
 def payday_checklist():
     settings = get_settings()
+    cycle_choice = request.args.get("cycle", "current")
+    cycle_offset = 1 if cycle_choice == "next" else 0
     income_sources = IncomeSource.query.filter_by(active=True).order_by(IncomeSource.next_pay_date, IncomeSource.name).all()
-    cycle_start, cycle_end, next_payday = household_pay_cycle(settings.first_payday, income_sources)
+    cycle_start, cycle_end, next_payday = get_cycle_window(settings, income_sources, offset=cycle_offset)
     income_items, income_total = income_for_cycle(income_sources, cycle_start, cycle_end)
     buckets = Bucket.query.filter_by(active=True).order_by(Bucket.sort_order, Bucket.name).all()
     bucket_allocations = calculate_bucket_allocations(buckets, income_total)
     person_bucket_allocations = calculate_person_bucket_allocations(income_items, buckets, income_total)
     checklist_items = ensure_payday_checklist_items(settings, cycle_start, income_items, person_bucket_allocations, bucket_allocations)
     hidden_preferences = PaydayChecklistPreference.query.filter_by(hidden=True).order_by(PaydayChecklistPreference.label).all()
+    cycle_occurrences = get_cycle_occurrences(settings, cycle_start, cycle_end, next_payday)
+    cycle_unpaid = [o for o in cycle_occurrences if o.status == "Upcoming"]
 
     if request.method == "POST":
         for item in checklist_items:
@@ -1213,19 +1369,23 @@ def payday_checklist():
         audit("update_payday_checklist", "PaydayChecklist", cycle_start.isoformat(), "Updated payday checklist")
         db.session.commit()
         flash("Payday checklist updated.", "success")
-        return redirect(url_for("main.payday_checklist"))
+        return redirect(url_for("main.payday_checklist", cycle=cycle_choice))
 
     return render_template(
         "payday_checklist.html",
+        cycle_choice=cycle_choice,
         cycle_start=cycle_start,
         cycle_end=cycle_end,
         next_payday=next_payday,
+        due_cutoff=cycle_bill_cutoff(settings, cycle_end, next_payday),
         income_items=income_items,
         income_total=income_total,
         bucket_allocations=bucket_allocations,
         person_bucket_allocations=person_bucket_allocations,
         checklist_items=checklist_items,
         hidden_preferences=hidden_preferences,
+        cycle_occurrences=cycle_occurrences,
+        cycle_unpaid=cycle_unpaid,
     )
 
 

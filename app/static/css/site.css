@@ -1259,3 +1259,54 @@ html[data-bs-theme="dark"] .modern-calendar .calendar-day.today {
     flex: 1 1 auto;
   }
 }
+
+/* v22 workflow polish */
+.calendar-event-link {
+  color: inherit;
+  text-decoration: none;
+  display: block;
+}
+.calendar-event-link:hover,
+.calendar-event-link:focus {
+  color: inherit;
+  text-decoration: none;
+  filter: brightness(1.04);
+}
+.set-aside-breakdown {
+  max-width: 30rem;
+}
+.set-aside-breakdown > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .55rem 0;
+  border-bottom: 1px solid var(--hs-border);
+}
+.set-aside-breakdown > div.total {
+  border-bottom: 0;
+  font-size: 1.05rem;
+}
+.health-check {
+  border-left: 4px solid var(--hs-border);
+}
+.health-ok { border-left-color: var(--hs-success); }
+.health-warning { border-left-color: var(--hs-warning); }
+.health-danger { border-left-color: var(--hs-danger); }
+.status-dot {
+  display: inline-block;
+  width: .7rem;
+  height: .7rem;
+  border-radius: 999px;
+  background: var(--hs-border);
+}
+.status-ok { background: var(--hs-success); }
+.status-warning { background: var(--hs-warning); }
+.status-danger { background: var(--hs-danger); }
+@media (max-width: 767.98px) {
+  .page-header .action-bar {
+    width: 100%;
+  }
+  .page-header .action-bar .btn {
+    flex: 1 1 auto;
+  }
+}

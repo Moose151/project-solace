@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="mb-1">Cycle Closeout</h1>
+    <div class="page-kicker">{{ cycle_start.strftime('%d %b') }} – {{ cycle_end.strftime('%d %b %Y') }} · {{ closeout.status }}</div>
+  </div>
+  <div class="action-bar">
+    <a class="btn btn-sm {{ 'btn-primary' if cycle_choice != 'next' else 'btn-outline-primary' }}" href="{{ url_for('main.cycle_closeout') }}">Current cycle</a>
+    <a class="btn btn-sm {{ 'btn-primary' if cycle_choice == 'next' else 'btn-outline-primary' }}" href="{{ url_for('main.cycle_closeout', cycle='next') }}">Next cycle</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.pay_cycle', cycle=cycle_choice) }}">Pay cycle</a>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-3"><div class="card metric"><div class="card-body"><div class="metric-label">Expected income</div><div class="h3">{{ settings.currency_symbol }}{{ '%.2f'|format(income_total) }}</div></div></div></div>
+  <div class="col-md-3"><div class="card metric"><div class="card-body"><div class="metric-label">Paid bills</div><div class="h3">{{ paid|length }}</div></div></div></div>
+  <div class="col-md-3"><div class="card metric"><div class="card-body"><div class="metric-label">Skipped bills</div><div class="h3">{{ skipped|length }}</div></div></div></div>
+  <div class="col-md-3"><div class="card metric"><div class="card-body"><div class="metric-label">Still unpaid</div><div class="h3">{{ unpaid|length }}</div></div></div></div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-7"><div class="card h-100"><div class="card-body">
+    <h2 class="h5">Bills expected this cycle</h2>
+    {% if occurrences %}<div class="table-responsive"><table class="table align-middle"><thead><tr><th>Date</th><th>Bill</th><th>Status</th><th class="text-end">Amount</th></tr></thead><tbody>{% for item in occurrences %}<tr><td>{{ item.due_date }}</td><td><a href="{{ url_for('main.bill_detail', bill_id=item.bill.id) }}">{{ item.bill.name }}</a></td><td>{{ item.status }}</td><td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="text-muted mb-0">No bills in this cycle.</p>{% endif %}
+  </div></div></div>
+  <div class="col-lg-5"><div class="card h-100"><div class="card-body">
+    <h2 class="h5">Transfers completed</h2>
+    <p class="text-muted">{{ checklist_items|selectattr('completed')|list|length }} of {{ checklist_items|length }} checklist items completed.</p>
+    {% for person in person_bucket_allocations %}<div class="soft-panel mb-3"><div class="d-flex justify-content-between"><strong>{{ person.person }}</strong><span>{{ settings.currency_symbol }}{{ '%.2f'|format(person.bucket_total) }}</span></div>{% for row in person.bucket_allocations %}<div class="mini-stat"><span>{{ row.bucket.name }}</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(row.rounded_amount) }}</strong></div>{% endfor %}</div>{% endfor %}
+    <form method="post">
+      {{ form.hidden_tag() }}
+      {{ form.notes.label(class='form-label') }} {{ form.notes(class='form-control mb-3', rows=3) }}
+      <button class="btn btn-primary" {% if closeout.status == 'Closed' %}disabled{% endif %}>{{ 'Cycle already closed' if closeout.status == 'Closed' else 'Close cycle' }}</button>
+      {% if closeout.closed_at %}<div class="text-muted small mt-2">Closed {{ closeout.closed_at }}</div>{% endif %}
+    </form>
+  </div></div></div>
+</div>
+{% endblock %}

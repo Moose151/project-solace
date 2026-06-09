@@ -29,6 +29,7 @@ class Settings(db.Model):
     theme = db.Column(db.String(20), nullable=False, default="Light")  # Light, Dark, Auto
     setup_checklist_dismissed = db.Column(db.Boolean, default=False)
     show_help_tips = db.Column(db.Boolean, default=True)
+    payday_bill_handling = db.Column(db.String(20), nullable=False, default="new_cycle")  # new_cycle or previous_cycle
 
 
 class Category(db.Model):
@@ -161,4 +162,13 @@ class NotificationSetting(db.Model):
     provider = db.Column(db.String(30), nullable=False, default="None")  # None, ntfy, Gotify/Webhook
     webhook_url = db.Column(db.String(500), nullable=True)
     token = db.Column(db.String(255), nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+
+
+class CycleCloseout(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    cycle_start = db.Column(db.String(10), unique=True, nullable=False)
+    cycle_end = db.Column(db.String(10), nullable=False)
+    status = db.Column(db.String(20), nullable=False, default="Open")  # Open, Closed
+    closed_at = db.Column(db.String(25), nullable=True)
     notes = db.Column(db.Text, nullable=True)
