@@ -1,38 +1,61 @@
 {% extends "base.html" %}
 {% block content %}
-<h1 class="mb-3">{{ title }}</h1>
+<div class="page-header">
+  <div>
+    <h1 class="mb-1">{{ title }}</h1>
+    <div class="page-kicker">Enter the first date the bill comes out. Solace will repeat it based on the frequency.</div>
+  </div>
+</div>
+
 <form method="post" class="card shadow-sm"><div class="card-body row g-3">
   {{ form.hidden_tag() }}
-  <div class="col-md-6">{{ form.name.label(class="form-label") }} {{ form.name(class="form-control") }}</div>
+  <div class="col-lg-6">{{ form.name.label(class="form-label") }} {{ form.name(class="form-control", placeholder="e.g. Internet, car insurance, Netflix") }}</div>
   <div class="col-md-3">{{ form.amount.label(class="form-label") }} {{ form.amount(class="form-control") }}</div>
   <div class="col-md-3">{{ form.frequency.label(class="form-label") }} {{ form.frequency(class="form-select") }}</div>
-  <div class="col-md-3">{{ form.due_day.label(class="form-label") }} {{ form.due_day(class="form-control") }}</div>
-  <div class="col-md-3">{{ form.due_month.label(class="form-label") }} {{ form.due_month(class="form-control") }}<div class="form-text">Use for yearly/six-monthly items.</div></div>
-  <div class="col-md-3">{{ form.start_date.label(class="form-label") }} {{ form.start_date(class="form-control") }}</div>
-  <div class="col-md-3">{{ form.end_date.label(class="form-label") }} {{ form.end_date(class="form-control") }}</div>
-  <div class="col-md-4">{{ form.category_id.label(class="form-label") }} {{ form.category_id(class="form-select") }}</div>
-  <div class="col-md-4">{{ form.new_category_name.label(class="form-label") }} {{ form.new_category_name(class="form-control") }}<div class="form-text">{{ form.new_category_name.description }}</div></div>
-  <div class="col-md-4">{{ form.account_name.label(class="form-label") }} {{ form.account_name(class="form-control") }}</div>
-  <div class="col-md-4 pt-4">
-    <div class="form-check">{{ form.active(class="form-check-input") }} {{ form.active.label(class="form-check-label") }}</div>
-    <div class="form-check">{{ form.autopay(class="form-check-input") }} {{ form.autopay.label(class="form-check-label") }}</div>
-    <div class="form-check">{{ form.include_in_set_aside(class="form-check-input") }} {{ form.include_in_set_aside.label(class="form-check-label") }}</div>
+
+  <div class="col-md-4">
+    {{ form.first_due_date.label(class="form-label") }}
+    {{ form.first_due_date(class="form-control", placeholder="DD/MM/YY or YYYY-MM-DD") }}
+    <div class="form-text">{{ form.first_due_date.description }}</div>
   </div>
+  <div class="col-md-4">
+    {{ form.end_date.label(class="form-label") }}
+    {{ form.end_date(class="form-control", placeholder="Optional") }}
+    <div class="form-text">{{ form.end_date.description }}</div>
+  </div>
+  <div class="col-md-4">{{ form.account_name.label(class="form-label") }} {{ form.account_name(class="form-control", placeholder="Optional") }}</div>
+
+  <div class="col-md-6">{{ form.category_id.label(class="form-label") }} {{ form.category_id(class="form-select") }}</div>
+  <div class="col-md-6">{{ form.new_category_name.label(class="form-label") }} {{ form.new_category_name(class="form-control") }}<div class="form-text">{{ form.new_category_name.description }}</div></div>
+
+  <div class="col-12">
+    <div class="soft-panel bill-repeat-help">
+      <strong>How dates work:</strong>
+      <span>Monthly bills repeat on the same day each month. Weekly and fortnightly bills repeat from the first due date. Quarterly, six-monthly, and yearly bills repeat from that first date’s month.</span>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="check-grid">
+      <div class="form-check">{{ form.active(class="form-check-input") }} {{ form.active.label(class="form-check-label") }}</div>
+      <div class="form-check">{{ form.autopay(class="form-check-input") }} {{ form.autopay.label(class="form-check-label") }}</div>
+      <div class="form-check">{{ form.include_in_set_aside(class="form-check-input") }} {{ form.include_in_set_aside.label(class="form-check-label") }}</div>
+    </div>
+  </div>
+
   <div class="col-12">{{ form.notes.label(class="form-label") }} {{ form.notes(class="form-control", rows="3") }}</div>
   {% if edit_mode %}
   <div class="col-12">
-    <div class="card border-warning">
-      <div class="card-body">
-        <label class="form-label fw-semibold">Occurrence update behaviour</label>
-        <select class="form-select" name="occurrence_update_scope">
-          <option value="future_unpaid" selected>Update future unpaid occurrences only</option>
-          <option value="all_unpaid">Update all unpaid occurrences in the budget year</option>
-        </select>
-        <div class="form-text">Paid occurrences are always preserved. Use <strong>future unpaid</strong> for normal edits, such as changing the amount from now onward. Use <strong>all unpaid</strong> when correcting a bill rule for the whole budget year.</div>
-      </div>
+    <div class="soft-panel occurrence-panel">
+      <label class="form-label fw-semibold">Occurrence update behaviour</label>
+      <select class="form-select" name="occurrence_update_scope">
+        <option value="future_unpaid" selected>Update future unpaid occurrences only</option>
+        <option value="all_unpaid">Update all unpaid occurrences in the budget year</option>
+      </select>
+      <div class="form-text">Paid occurrences are always preserved. Use <strong>future unpaid</strong> for normal edits, such as changing the amount from now onward. Use <strong>all unpaid</strong> when correcting a bill rule for the whole budget year.</div>
     </div>
   </div>
   {% endif %}
-  <div class="col-12"><button class="btn btn-primary">Save</button> <a href="{{ url_for('main.bills') }}" class="btn btn-outline-secondary">Cancel</a></div>
+  <div class="col-12 action-bar justify-content-start"><button class="btn btn-primary">Save</button> <a href="{{ url_for('main.bills') }}" class="btn btn-outline-secondary">Cancel</a></div>
 </div></form>
 {% endblock %}

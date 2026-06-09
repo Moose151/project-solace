@@ -13,7 +13,7 @@
 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-3">
   <div>
     <h1 class="mb-1">Recurring Bills</h1>
-    <p class="text-muted mb-0">Sort and filter your recurring bills by amount, category, due date, and set-aside impact.</p>
+    <p class="text-muted mb-0">Sort and filter your recurring bills by amount, category, first due date, and set-aside impact.</p>
   </div>
   <div class="d-flex gap-2">
     <a href="{{ url_for('main.bill_category_overview') }}" class="btn btn-outline-primary">Category overview</a>
@@ -52,7 +52,7 @@
           <div class="mobile-list-title">{{ bill.name }}</div>
           <div class="mobile-list-meta">
             {% if bill.category %}{{ bill.category.name }} · {% else %}Uncategorised · {% endif %}
-            {{ bill.frequency }} · Due {{ bill.due_day }}{% if bill.due_month %}/{{ bill.due_month }}{% endif %}
+            {{ bill.frequency }} · First due {{ bill.start_date }}
           </div>
         </div>
         <div class="mobile-list-amount">{{ settings.currency_symbol }}{{ '%.2f'|format(bill.amount) }}</div>
@@ -83,7 +83,7 @@
             <th>{{ sort_link('Name', 'name') }}</th>
             <th>{{ sort_link('Category', 'category') }}</th>
             <th>{{ sort_link('Frequency', 'frequency') }}</th>
-            <th>{{ sort_link('Due', 'due') }}</th>
+            <th>{{ sort_link('First due', 'due') }}</th>
             <th class="text-end">{{ sort_link('Amount', 'amount') }}</th>
             <th class="text-end">{{ sort_link('Annual', 'annual') }}</th>
             <th class="text-end">{{ sort_link('Per fortnight', 'fortnightly') }}</th>
@@ -97,7 +97,7 @@
             <td class="fw-semibold">{{ bill.name }}</td>
             <td>{% if bill.category %}<span class="badge badge-soft">{{ bill.category.name }}</span>{% else %}<span class="text-muted">Uncategorised</span>{% endif %}</td>
             <td>{{ bill.frequency }}</td>
-            <td>{{ bill.due_day }}{% if bill.due_month %}/{{ bill.due_month }}{% endif %}</td>
+            <td>{{ bill.start_date }}</td>
             <td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(bill.amount) }}</td>
             <td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(annual_cost(bill)) }}</td>
             <td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(fortnightly_bill_amount(bill)) }}</td>

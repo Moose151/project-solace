@@ -137,6 +137,38 @@ def normalise_date_string(value):
     return parsed.isoformat() if parsed else None
 
 
+def apply_bill_form(form, bill):
+    """Apply the recurring bill form to the model using one clear first due date.
+
+    Internally Solace still stores due_day, due_month, and start_date because the
+    recurrence engine uses those fields. The form presents a simpler model: the
+    user enters the first date the bill comes out, and Solace derives the rest.
+    """
+    first_due = parse_date(form.first_due_date.data)
+    if not first_due:
+        raise ValueError("A first due date is required.")
+
+    bill.name = form.name.data
+    bill.amount = form.amount.data
+    bill.frequency = form.frequency.data
+    bill.due_day = first_due.day
+    bill.start_date = first_due.isoformat()
+
+    # Month-based recurring items need an anchor month. Monthly bills do not,
+    # but quarterly/six-monthly/yearly bills repeat from the first due month.
+    if bill.frequency in ["Quarterly", "Six-monthly", "Yearly"]:
+        bill.due_month = first_due.month
+    else:
+        bill.due_month = None
+
+    bill.end_date = normalise_date_string(form.end_date.data) if form.end_date.data else None
+    bill.active = bool(form.active.data)
+    bill.autopay = bool(form.autopay.data)
+    bill.account_name = form.account_name.data
+    bill.include_in_set_aside = bool(form.include_in_set_aside.data)
+    bill.notes = form.notes.data
+
+
 def get_or_create_category(name, category_type="Bill"):
     if not name:
         return None
@@ -538,7 +570,7 @@ def bills():
             "name": (bill.name or "").lower(),
             "category": category_name.lower(),
             "frequency": bill.frequency or "",
-            "due": ((bill.due_month or 0), (bill.due_day or 0), (bill.name or "").lower()),
+            "due": (bill.start_date or "", (bill.name or "").lower()),
             "amount": float(bill.amount or 0),
             "annual": annual_cost(bill),
             "fortnightly": fortnightly_bill_amount(bill),
@@ -629,9 +661,7 @@ def new_bill():
     form.category_id.choices = category_choices("Bill")
     if form.validate_on_submit():
         bill = RecurringBill()
-        form.populate_obj(bill)
-        bill.start_date = normalise_date_string(bill.start_date)
-        bill.end_date = normalise_date_string(bill.end_date) if bill.end_date else None
+        apply_bill_form(form, bill)
         new_category = get_or_create_category(form.new_category_name.data, "Bill")
         bill.category_id = new_category.id if new_category else (form.category_id.data or None)
         db.session.add(bill)
@@ -652,11 +682,10 @@ def edit_bill(bill_id):
     form.category_id.choices = category_choices("Bill")
     if request.method == "GET":
         form.category_id.data = bill.category_id or 0
+        form.first_due_date.data = bill.start_date
     if form.validate_on_submit():
         scope = request.form.get("occurrence_update_scope", "future_unpaid")
-        form.populate_obj(bill)
-        bill.start_date = normalise_date_string(bill.start_date)
-        bill.end_date = normalise_date_string(bill.end_date) if bill.end_date else None
+        apply_bill_form(form, bill)
         new_category = get_or_create_category(form.new_category_name.data, "Bill")
         bill.category_id = new_category.id if new_category else (form.category_id.data or None)
         regenerate_bill_occurrences(bill, scope=scope)
@@ -826,10 +855,16 @@ def month_view(year, month):
     for event in month_events:
         events_by_date.setdefault(event["date"].isoformat(), []).append(event)
 
+    today = date.today()
     calendar_weeks = []
     for week in Calendar(firstweekday=0).monthdatescalendar(year, month):
         calendar_weeks.append([
-            {"date": day, "in_month": day.month == month, "events": events_by_date.get(day.isoformat(), [])}
+            {
+                "date": day,
+                "in_month": day.month == month,
+                "is_today": day == today,
+                "events": events_by_date.get(day.isoformat(), []),
+            }
             for day in week
         ])
 
@@ -842,7 +877,8 @@ def month_view(year, month):
         "month.html",
         year=year,
         month=month,
-        month_name=month_name[month],
+        month_label=month_name[month],
+        month_names=list(month_name),
         selected_view=selected_view,
         occurrences=occurrences,
         month_events=month_events,
@@ -851,6 +887,7 @@ def month_view(year, month):
         paid=paid,
         unpaid=unpaid,
         income_total=income_total,
+        today=today,
     )
 
 

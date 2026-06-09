@@ -45,10 +45,17 @@ class RecurringBillForm(FlaskForm):
             ("Yearly", "Yearly"),
         ],
     )
-    due_day = IntegerField("Due day", validators=[DataRequired(), NumberRange(min=1, max=31)])
-    due_month = IntegerField("Due month", validators=[Optional(), NumberRange(min=1, max=12)], description="Use for yearly/six-monthly bills")
-    start_date = StringField("Start date", validators=[DataRequired()], description="YYYY-MM-DD or DD/MM/YYYY")
-    end_date = StringField("End date", validators=[Optional()], description="YYYY-MM-DD or DD/MM/YYYY, optional")
+    first_due_date = StringField(
+        "First due date",
+        validators=[DataRequired()],
+        description="The first date this bill comes out. Solace uses this to work out the day and repeat pattern."
+    )
+    # Legacy/generated fields. These are still stored in the database, but the UI now uses
+    # first_due_date so users do not need to understand due day vs start date.
+    due_day = IntegerField("Generated due day", validators=[Optional(), NumberRange(min=1, max=31)])
+    due_month = IntegerField("Generated due month", validators=[Optional(), NumberRange(min=1, max=12)])
+    start_date = StringField("Generated start date", validators=[Optional()])
+    end_date = StringField("Stop after date", validators=[Optional()], description="Optional. Leave blank unless the bill should stop after a date.")
     category_id = SelectField("Category", coerce=int, validators=[Optional()])
     new_category_name = StringField("New category", validators=[Optional(), Length(max=80)], description="Optional. Creates a new bill category and uses it for this bill.")
     active = BooleanField("Active", default=True)

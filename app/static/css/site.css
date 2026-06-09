@@ -1080,3 +1080,182 @@ html[data-bs-theme="dark"] .table {
     min-width: 42rem;
   }
 }
+
+/* v20 bill entry and calendar refinement --------------------------------- */
+.bill-repeat-help {
+  display: flex;
+  gap: .5rem;
+  align-items: flex-start;
+  color: var(--hs-muted);
+}
+
+.bill-repeat-help strong {
+  color: var(--hs-text);
+  white-space: nowrap;
+}
+
+.check-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem 1.5rem;
+}
+
+.check-grid .form-check {
+  min-width: 11rem;
+}
+
+.occurrence-panel {
+  border-color: rgba(201, 138, 61, .34);
+}
+
+.calendar-page-header .calendar-actions {
+  align-items: center;
+}
+
+.month-jump {
+  border-radius: var(--hs-radius);
+}
+
+.month-pill-row {
+  display: flex;
+  gap: .35rem;
+  overflow-x: auto;
+  padding: .15rem 0;
+}
+
+.month-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3.2rem;
+  padding: .45rem .65rem;
+  border-radius: 999px;
+  color: var(--hs-muted);
+  text-decoration: none;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.month-pill:hover {
+  color: var(--hs-primary-hover);
+  background: var(--hs-surface-muted);
+}
+
+.month-pill.active {
+  color: var(--hs-primary-hover);
+  background: var(--hs-primary-soft);
+  border-color: rgba(63, 111, 143, .22);
+}
+
+.modern-calendar .calendar-month-grid {
+  gap: .65rem;
+}
+
+.modern-calendar .calendar-day {
+  position: relative;
+  min-height: 9.25rem;
+  display: flex;
+  flex-direction: column;
+  background: var(--hs-surface-raised);
+  transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+
+.modern-calendar .calendar-day:hover {
+  border-color: var(--hs-border-strong);
+  transform: translateY(-1px);
+}
+
+.modern-calendar .calendar-day.today {
+  border-color: var(--hs-primary);
+  box-shadow: 0 0 0 3px rgba(63, 111, 143, .14);
+}
+
+.calendar-date-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .35rem;
+  margin-bottom: .45rem;
+}
+
+.calendar-date {
+  margin-bottom: 0;
+  line-height: 1;
+}
+
+.today-pill {
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  color: var(--hs-primary-hover);
+  background: var(--hs-primary-soft);
+  border: 1px solid rgba(63, 111, 143, .22);
+  border-radius: 999px;
+  padding: .15rem .38rem;
+}
+
+.calendar-events {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+}
+
+.calendar-empty {
+  color: var(--hs-muted);
+  opacity: .38;
+  font-size: .8rem;
+  padding-top: .25rem;
+}
+
+.calendar-event {
+  border-color: var(--hs-border);
+  background: var(--hs-surface);
+}
+
+.bill-event {
+  border-left: .25rem solid var(--hs-warning);
+}
+
+.income-event {
+  border-left: .25rem solid var(--hs-success);
+}
+
+.paid-event {
+  opacity: .72;
+}
+
+.skipped-event {
+  opacity: .62;
+  text-decoration: line-through;
+}
+
+html[data-bs-theme="dark"] .month-pill.active,
+html[data-bs-theme="dark"] .today-pill {
+  background: rgba(131, 169, 189, .16);
+  border-color: rgba(131, 169, 189, .32);
+}
+
+html[data-bs-theme="dark"] .modern-calendar .calendar-day.today {
+  box-shadow: 0 0 0 3px rgba(131, 169, 189, .15);
+}
+
+@media (max-width: 576px) {
+  .bill-repeat-help {
+    display: block;
+  }
+
+  .bill-repeat-help strong {
+    display: block;
+    margin-bottom: .25rem;
+  }
+
+  .calendar-actions {
+    width: 100%;
+  }
+
+  .calendar-actions > .btn,
+  .calendar-actions .view-toggle {
+    flex: 1 1 auto;
+  }
+}

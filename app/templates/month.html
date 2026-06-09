@@ -1,47 +1,60 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="page-header">
+<div class="page-header calendar-page-header">
   <div>
-    <h1 class="mb-1">{{ month_name }} {{ year }}</h1>
-    <div class="page-kicker">Bills due and income expected for the selected month.</div>
+    <h1 class="mb-1">{{ month_label }} {{ year }}</h1>
+    <div class="page-kicker">A simple view of bills coming out and income coming in.</div>
   </div>
-  <div class="action-bar">
-    <div class="btn-group flex-wrap me-2">
-      {% for m in range(1, 13) %}
-        <a class="btn btn-sm {{ 'btn-primary' if m == month else 'btn-outline-primary' }}" href="{{ url_for('main.month_view', year=year, month=m, view=selected_view) }}">{{ m }}</a>
-      {% endfor %}
-    </div>
-    <div class="btn-group">
+  <div class="action-bar calendar-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.month_view', year=year if month > 1 else year - 1, month=month - 1 if month > 1 else 12, view=selected_view) }}">Previous</a>
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('main.calendar_current') }}">This month</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.month_view', year=year if month < 12 else year + 1, month=month + 1 if month < 12 else 1, view=selected_view) }}">Next</a>
+    <div class="btn-group view-toggle">
       <a class="btn btn-sm {{ 'btn-primary' if selected_view == 'calendar' else 'btn-outline-primary' }}" href="{{ url_for('main.month_view', year=year, month=month, view='calendar') }}">Calendar</a>
       <a class="btn btn-sm {{ 'btn-primary' if selected_view == 'list' else 'btn-outline-primary' }}" href="{{ url_for('main.month_view', year=year, month=month, view='list') }}">List</a>
     </div>
   </div>
 </div>
 
+<div class="month-jump card shadow-sm mb-3"><div class="card-body py-2">
+  <div class="month-pill-row">
+    {% for m in range(1, 13) %}
+      <a class="month-pill {{ 'active' if m == month else '' }}" href="{{ url_for('main.month_view', year=year, month=m, view=selected_view) }}">{{ month_names[m][:3] }}</a>
+    {% endfor %}
+  </div>
+</div></div>
+
 <div class="row g-3 mb-4">
-  <div class="col-md-3"><div class="card metric"><div class="card-body"><div class="metric-label">Bills total</div><div class="metric-value">{{ settings.currency_symbol }}{{ '%.2f'|format(total) }}</div></div></div></div>
-  <div class="col-md-3"><div class="card metric"><div class="card-body"><div class="metric-label">Paid bills</div><div class="metric-value">{{ settings.currency_symbol }}{{ '%.2f'|format(paid) }}</div></div></div></div>
-  <div class="col-md-3"><div class="card metric"><div class="card-body"><div class="metric-label">Unpaid bills</div><div class="metric-value">{{ settings.currency_symbol }}{{ '%.2f'|format(unpaid) }}</div></div></div></div>
-  <div class="col-md-3"><div class="card metric"><div class="card-body"><div class="metric-label">Income expected</div><div class="metric-value">{{ settings.currency_symbol }}{{ '%.2f'|format(income_total) }}</div></div></div></div>
+  <div class="col-6 col-lg-3"><div class="card metric"><div class="card-body"><div class="metric-label">Bills total</div><div class="metric-value">{{ settings.currency_symbol }}{{ '%.2f'|format(total) }}</div></div></div></div>
+  <div class="col-6 col-lg-3"><div class="card metric"><div class="card-body"><div class="metric-label">Paid bills</div><div class="metric-value">{{ settings.currency_symbol }}{{ '%.2f'|format(paid) }}</div></div></div></div>
+  <div class="col-6 col-lg-3"><div class="card metric"><div class="card-body"><div class="metric-label">Unpaid bills</div><div class="metric-value">{{ settings.currency_symbol }}{{ '%.2f'|format(unpaid) }}</div></div></div></div>
+  <div class="col-6 col-lg-3"><div class="card metric"><div class="card-body"><div class="metric-label">Income expected</div><div class="metric-value">{{ settings.currency_symbol }}{{ '%.2f'|format(income_total) }}</div></div></div></div>
 </div>
 
 {% if selected_view == 'calendar' %}
-<div class="card shadow-sm calendar-card">
+<div class="card shadow-sm calendar-card modern-calendar">
   <div class="card-body">
     <div class="calendar-grid calendar-head mb-2">
       <div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
     </div>
-    <div class="calendar-grid">
+    <div class="calendar-grid calendar-month-grid">
       {% for week in calendar_weeks %}
         {% for day in week %}
-          <div class="calendar-day {{ '' if day.in_month else 'muted' }}">
-            <div class="calendar-date">{{ day.date.day }}</div>
-            {% for event in day.events %}
-              <div class="calendar-event {{ 'income-event' if event.type == 'income' else 'bill-event' }}">
-                <div class="event-title">{{ event.title }}</div>
-                <div class="event-meta">{{ settings.currency_symbol }}{{ '%.2f'|format(event.amount) }}{% if event.type == 'bill' %} · {{ event.status }}{% endif %}</div>
-              </div>
-            {% endfor %}
+          <div class="calendar-day {{ '' if day.in_month else 'muted' }} {{ 'today' if day.is_today else '' }}">
+            <div class="calendar-date-row">
+              <span class="calendar-date">{{ day.date.day }}</span>
+              {% if day.is_today %}<span class="today-pill">Today</span>{% endif %}
+            </div>
+            <div class="calendar-events">
+              {% for event in day.events %}
+                <div class="calendar-event {{ 'income-event' if event.type == 'income' else 'bill-event' }} {{ 'paid-event' if event.type == 'bill' and event.status == 'Paid' else '' }} {{ 'skipped-event' if event.type == 'bill' and event.status == 'Skipped' else '' }}">
+                  <div class="event-title">{{ event.title }}</div>
+                  <div class="event-meta">{{ settings.currency_symbol }}{{ '%.2f'|format(event.amount) }}{% if event.type == 'bill' %} · {{ event.status }}{% endif %}</div>
+                </div>
+              {% else %}
+                {% if day.in_month %}<div class="calendar-empty">—</div>{% endif %}
+              {% endfor %}
+            </div>
           </div>
         {% endfor %}
       {% endfor %}
