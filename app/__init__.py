@@ -7,7 +7,7 @@ from flask_wtf.csrf import CSRFProtect
 from werkzeug.security import generate_password_hash
 from sqlalchemy import text
 
-from .models import db, User, Settings, Category, Bucket, IncomeSource, DashboardWidget, NotificationSetting
+from .models import db, User, Settings, Category, Bucket, IncomeSource, DashboardWidget, NotificationSetting, PlannedPurchase
 
 login_manager = LoginManager()
 login_manager.login_view = "main.login"
@@ -124,6 +124,12 @@ def apply_lightweight_migrations():
     if not column_exists("income_source", "owner_name"):
         db.session.execute(text("ALTER TABLE income_source ADD COLUMN owner_name VARCHAR(120) NOT NULL DEFAULT 'Household'"))
 
+    if not column_exists("planned_purchase", "purchase_scope"):
+        db.session.execute(text("ALTER TABLE planned_purchase ADD COLUMN purchase_scope VARCHAR(20) NOT NULL DEFAULT 'Shared'"))
+
+    if not column_exists("planned_purchase", "owner_name"):
+        db.session.execute(text("ALTER TABLE planned_purchase ADD COLUMN owner_name VARCHAR(120)"))
+
     if not Bucket.query.first():
         starter_buckets = [
             ("Bills", 25, 10, "Bills", 10),
@@ -140,6 +146,9 @@ def apply_lightweight_migrations():
                 sort_order=sort_order,
                 active=True,
             ))
+
+    for purchase in PlannedPurchase.query.filter((PlannedPurchase.purchase_scope == None) | (PlannedPurchase.purchase_scope == "")).all():
+        purchase.purchase_scope = "Shared"
 
     capped_buckets = Bucket.query.filter(Bucket.cap_to_remaining.is_(True)).order_by(Bucket.sort_order, Bucket.name).all()
     for bucket in capped_buckets[1:]:

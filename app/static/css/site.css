@@ -1310,3 +1310,29 @@ html[data-bs-theme="dark"] .modern-calendar .calendar-day.today {
     flex: 1 1 auto;
   }
 }
+
+
+/* v23 privacy filter */
+#privacyToggle.active {
+  background: rgba(255,255,255,.18);
+  border-color: rgba(255,255,255,.42);
+}
+.privacy-blur .money-value {
+  filter: blur(7px);
+  user-select: none;
+  transition: filter .15s ease;
+}
+.privacy-blur .money-value:hover,
+.privacy-blur .money-value:focus {
+  filter: blur(4px);
+}
+.privacy-blur .metric-value,
+.privacy-blur .summary-pill strong,
+.privacy-blur td:nth-child(n+4) {
+  /* fallback for values not automatically wrapped */
+}
+.badge-soft {
+  color: var(--hs-text);
+  background: var(--hs-surface-soft);
+  border: 1px solid var(--hs-border);
+}

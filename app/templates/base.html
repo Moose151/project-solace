@@ -62,6 +62,7 @@
           </ul>
         </li>
       </ul>
+      <button class="btn btn-outline-light btn-sm me-2" type="button" id="privacyToggle" aria-pressed="false" title="Blur money amounts">Privacy</button>
       <a class="btn btn-outline-light btn-sm" href="{{ url_for('main.logout') }}">Logout</a>
       {% endif %}
     </div>
@@ -96,6 +97,56 @@
   document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
     new bootstrap.Tooltip(el, { trigger: 'hover focus click' });
   });
+
+  (function solacePrivacyFilter() {
+    function wrapMoneyTextNodes(root) {
+      if (!root || root.dataset.moneyWrapped === 'true') return;
+      var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: function(node) {
+          if (!node.nodeValue || !/[\$£€]\s?\d|\d[\d,]*\.\d{2}\s?\/fortnight/.test(node.nodeValue)) {
+            return NodeFilter.FILTER_REJECT;
+          }
+          var parent = node.parentElement;
+          if (!parent || parent.closest('script,style,textarea,input,select,.money-value')) {
+            return NodeFilter.FILTER_REJECT;
+          }
+          return NodeFilter.FILTER_ACCEPT;
+        }
+      });
+      var nodes = [];
+      while (walker.nextNode()) nodes.push(walker.currentNode);
+      nodes.forEach(function(node) {
+        var span = document.createElement('span');
+        span.className = 'money-value';
+        span.textContent = node.nodeValue;
+        node.parentNode.replaceChild(span, node);
+      });
+      root.dataset.moneyWrapped = 'true';
+    }
+
+    function setPrivacy(enabled) {
+      document.body.classList.toggle('privacy-blur', enabled);
+      localStorage.setItem('solacePrivacyBlur', enabled ? '1' : '0');
+      var button = document.getElementById('privacyToggle');
+      if (button) {
+        button.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+        button.classList.toggle('active', enabled);
+        button.textContent = enabled ? 'Privacy on' : 'Privacy';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      wrapMoneyTextNodes(document.querySelector('main'));
+      var enabled = localStorage.getItem('solacePrivacyBlur') === '1';
+      setPrivacy(enabled);
+      var button = document.getElementById('privacyToggle');
+      if (button) {
+        button.addEventListener('click', function() {
+          setPrivacy(!document.body.classList.contains('privacy-blur'));
+        });
+      }
+    });
+  })();
 </script>
 </body>
 </html>

@@ -5,9 +5,23 @@
   <h1>Planned Purchases</h1>
   <a href="{{ url_for('main.new_purchase') }}" class="btn btn-primary">Add purchase</a>
 </div>
+{% if individual_purchase_rows %}
+<div class="row g-3 mb-3">
+  {% for row in individual_purchase_rows %}
+  <div class="col-md-6 col-xl-4">
+    <div class="card shadow-sm"><div class="card-body">
+      <div class="eyebrow">Individual planned purchases</div>
+      <h2 class="h5 mb-1">{{ row.person }}</h2>
+      <div class="metric-value">{{ settings.currency_symbol }}{{ '%.2f'|format(row.total) }}</div>
+      <div class="text-muted small">per fortnight from individual spending</div>
+    </div></div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
 <div class="card shadow-sm"><div class="card-body">
 <div class="table-responsive"><table class="table table-hover align-middle">
-  <thead><tr><th>Name</th><th>Priority {{ help_tip("Priority sorts active planned purchases. It does not change the required per-fortnight calculation.") }}</th><th>Target date</th><th>Target</th><th>Saved</th><th>Remaining</th><th>Per fortnight</th><th>Status</th><th>Quick add</th><th></th></tr></thead>
+  <thead><tr><th>Name</th><th>Type</th><th>Priority {{ help_tip("Priority sorts active planned purchases. It does not change the required per-fortnight calculation.") }}</th><th>Target date</th><th>Target</th><th>Saved</th><th>Remaining</th><th>Per fortnight</th><th>Status</th><th>Quick add</th><th></th></tr></thead>
   <tbody>
   {% for purchase in purchases %}
     {% set remaining = purchase.target_amount - purchase.amount_saved %}
@@ -19,6 +33,7 @@
           <div class="progress mt-2" style="height: 8px;"><div class="progress-bar" style="width: {{ [pct, 100]|min }}%"></div></div>
         {% endif %}
       </td>
+      <td><span class="badge badge-soft">{{ planned_purchase_scope_label(purchase) }}</span></td>
       <td><span class="badge text-bg-{{ 'danger' if purchase.priority == 'High' else 'warning' if purchase.priority == 'Medium' else 'secondary' }}">{{ purchase.priority }}</span></td>
       <td>{{ purchase.target_date }}</td>
       <td>{{ settings.currency_symbol }}{{ '%.2f'|format(purchase.target_amount) }}</td>
@@ -46,7 +61,7 @@
       </td>
     </tr>
   {% else %}
-    <tr><td colspan="10" class="text-muted">No planned purchases yet.</td></tr>
+    <tr><td colspan="11" class="text-muted">No planned purchases yet.</td></tr>
   {% endfor %}
   </tbody>
 </table></div>

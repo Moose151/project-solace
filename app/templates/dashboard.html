@@ -78,7 +78,7 @@
               </div>
               <div class="summary-pills">
                 <div class="summary-pill"><span>Recurring bills</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(bill_fortnightly_total) }}</strong></div>
-                <div class="summary-pill"><span>Planned purchases</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(purchase_fortnightly_total) }}</strong></div>
+                <div class="summary-pill"><span>Shared planned purchases</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(purchase_fortnightly_total) }}</strong></div>
                 <div class="summary-pill"><span>Buffer</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(buffer_amount) }}</strong></div>
               </div>
             </div>
@@ -222,6 +222,7 @@
                 {% set pct = (purchase.amount_saved / purchase.target_amount * 100) if purchase.target_amount else 0 %}
                 <div class="purchase-card border rounded p-3 mb-3">
                   <div class="d-flex justify-content-between gap-3"><strong>{{ purchase.name }}</strong><span>{{ settings.currency_symbol }}{{ '%.2f'|format(planned_purchase_fortnightly_amount(purchase, settings.first_payday)) }}/fortnight</span></div>
+                  <div class="text-muted small">{{ planned_purchase_scope_label(purchase) }}</div>
                   <div class="progress my-2 progress-thin"><div class="progress-bar" style="width: {{ [pct, 100]|min }}%"></div></div>
                   <div class="small text-muted mb-2">{{ settings.currency_symbol }}{{ '%.2f'|format(purchase.amount_saved) }} saved of {{ settings.currency_symbol }}{{ '%.2f'|format(purchase.target_amount) }} · target {{ purchase.target_date }}</div>
                   <form class="d-flex gap-2" method="post" action="{{ url_for('main.add_purchase_saved', purchase_id=purchase.id) }}">

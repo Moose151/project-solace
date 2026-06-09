@@ -16,7 +16,8 @@ from .forms import LoginForm, SettingsForm, CategoryForm, RecurringBillForm, Pla
 from .budget_engine import (
     annual_cost, fortnightly_bill_amount, generate_bill_dates,
     planned_purchase_fortnightly_amount, current_pay_cycle, household_pay_cycle, money, parse_date, income_for_cycle,
-    generate_income_dates, next_income_pay_date, calculate_bucket_allocations, calculate_person_bucket_allocations
+    generate_income_dates, next_income_pay_date, calculate_bucket_allocations, calculate_person_bucket_allocations,
+    is_shared_purchase, planned_purchase_scope_label
 )
 
 main = Blueprint("main", __name__)
@@ -326,61 +327,42 @@ def get_dashboard_widgets():
 
 
 
-def get_cycle_window(settings, income_sources=None, today=None, offset=0):
-    """Return the pay-cycle window.
+def get_cycle_window(settings, income_sources=None, offset=0, today=None):
+    """Return the household pay-cycle window, optionally shifted by 14-day cycles.
 
-    The current cycle is based on the earliest active income source's known
-    payday. That known payday is an anchor date and can be in the past.
-
-    offset=0 returns the current cycle.
-    offset=1 returns the next cycle.
-    offset=-1 returns the previous cycle.
+    Active income sources are treated as the source of truth. Their stored
+    dates are known-payday anchors and can be in the past. This function must
+    not call itself; it calculates the current cycle directly from the earliest
+    active income anchor and then applies the requested offset.
     """
-    if today is None:
-        today = date.today()
-
-    active_income_sources = [
+    today = today or date.today()
+    active_sources = [
         source for source in (income_sources or [])
         if getattr(source, "active", False) and getattr(source, "next_pay_date", None)
     ]
 
-    anchor_date = None
+    anchors = []
+    for source in active_sources:
+        anchor = parse_date(getattr(source, "next_pay_date", None))
+        if anchor:
+            anchors.append(anchor)
 
-    if active_income_sources:
-        # Use the earliest active income date as the household pay-cycle anchor.
-        parsed_dates = []
-        for source in active_income_sources:
-            parsed_date = parse_date(source.next_pay_date)
-            if parsed_date:
-                parsed_dates.append(parsed_date)
+    if anchors:
+        cycle_start = min(anchors)
+    else:
+        cycle_start = parse_date(getattr(settings, "first_payday", None)) or today
 
-        if parsed_dates:
-            anchor_date = min(parsed_dates)
-
-    if anchor_date is None:
-        # Fallback to household settings if no active income source exists.
-        anchor_date = parse_date(settings.first_payday)
-
-    if anchor_date is None:
-        # Final fallback so the app does not crash on an incomplete setup.
-        anchor_date = today
-
-    # Move the cycle anchor forward until today is inside the current cycle.
-    cycle_start = anchor_date
     while cycle_start + timedelta(days=13) < today:
         cycle_start += timedelta(days=14)
 
-    # If the anchor is still in the future, move backwards until today fits.
     while cycle_start > today:
         cycle_start -= timedelta(days=14)
 
-    # Apply requested cycle offset.
     if offset:
-        cycle_start += timedelta(days=14 * offset)
+        cycle_start += timedelta(days=14 * int(offset))
 
     cycle_end = cycle_start + timedelta(days=13)
     next_payday = cycle_end + timedelta(days=1)
-
     return cycle_start, cycle_end, next_payday
 
 
@@ -415,12 +397,49 @@ def get_or_create_cycle_closeout(cycle_start, cycle_end):
     return closeout
 
 
+def purchase_person_choices():
+    """Return person choices based on configured income owners."""
+    names = sorted({
+        (source.owner_name or "Household").strip()
+        for source in IncomeSource.query.filter_by(active=True).all()
+        if (source.owner_name or "").strip()
+    }, key=str.lower)
+    choices = [("", "Select person")]
+    choices.extend((name, name) for name in names)
+    return choices
+
+
+def prepare_purchase_form(form, purchase=None):
+    form.category_id.choices = category_choices("Purchase")
+    form.owner_name.choices = purchase_person_choices()
+    if purchase and request.method == "GET":
+        form.category_id.data = purchase.category_id or 0
+        form.owner_name.data = purchase.owner_name or ""
+
+
+def shared_active_purchases():
+    return [p for p in PlannedPurchase.query.filter_by(status="Active").all() if is_shared_purchase(p)]
+
+
+def individual_purchase_contributions(first_payday):
+    rows = {}
+    for purchase in PlannedPurchase.query.filter_by(status="Active").all():
+        if is_shared_purchase(purchase):
+            continue
+        person = purchase.owner_name or "Unassigned"
+        rows.setdefault(person, {"person": person, "purchases": [], "total": 0})
+        amount = planned_purchase_fortnightly_amount(purchase, first_payday)
+        rows[person]["purchases"].append({"purchase": purchase, "amount": amount})
+        rows[person]["total"] = money(rows[person]["total"] + amount)
+    return sorted(rows.values(), key=lambda row: row["person"].lower())
+
+
 @main.context_processor
 def inject_globals():
     settings = get_settings()
     theme_mode = settings.theme if settings and settings.theme in ["Light", "Dark", "Auto"] else "Light"
     show_help_tips = True if not settings else bool(getattr(settings, "show_help_tips", True))
-    return {"settings": settings, "money": money, "theme_mode": theme_mode, "show_help_tips": show_help_tips}
+    return {"settings": settings, "money": money, "theme_mode": theme_mode, "show_help_tips": show_help_tips, "planned_purchase_scope_label": planned_purchase_scope_label}
 
 
 @main.route("/health")
@@ -453,15 +472,17 @@ def dashboard():
     settings = get_settings()
     bills = RecurringBill.query.filter_by(active=True).order_by(RecurringBill.name).all()
     purchases = PlannedPurchase.query.filter_by(status="Active").order_by(PlannedPurchase.target_date).all()
+    shared_purchases = [p for p in purchases if is_shared_purchase(p)]
+    individual_purchase_rows = individual_purchase_contributions(settings.first_payday)
 
     bill_fortnightly_total = money(sum(fortnightly_bill_amount(b) for b in bills))
-    purchase_fortnightly_total = money(sum(planned_purchase_fortnightly_amount(p, settings.first_payday) for p in purchases))
+    purchase_fortnightly_total = money(sum(planned_purchase_fortnightly_amount(p, settings.first_payday) for p in shared_purchases))
     buffer_amount = money(settings.default_buffer_amount)
     total_set_aside = money(bill_fortnightly_total + purchase_fortnightly_total + buffer_amount)
 
     today = date.today()
     income_sources = IncomeSource.query.filter_by(active=True).order_by(IncomeSource.next_pay_date, IncomeSource.name).all()
-    cycle_start, cycle_end, next_payday = household_pay_cycle(settings.first_payday, income_sources, today=today)
+    cycle_start, cycle_end, next_payday = get_cycle_window(settings, income_sources, today=today)
     income_items, income_total = income_for_cycle(income_sources, cycle_start, cycle_end)
     buckets = Bucket.query.filter_by(active=True).order_by(Bucket.sort_order, Bucket.name).all()
     bucket_allocations = calculate_bucket_allocations(buckets, income_total)
@@ -531,6 +552,8 @@ def dashboard():
         monthly_total=monthly_total,
         annual_total=annual_total,
         purchases=purchases,
+        shared_purchases=shared_purchases,
+        individual_purchase_rows=individual_purchase_rows,
         planned_purchase_fortnightly_amount=planned_purchase_fortnightly_amount,
         setup_steps=setup_steps,
         show_setup=show_setup,
@@ -876,6 +899,7 @@ def cycle_closeout():
         income_total=income_total,
         bucket_allocations=bucket_allocations,
         person_bucket_allocations=person_bucket_allocations,
+        individual_purchase_rows=individual_purchase_contributions(settings.first_payday),
         checklist_items=checklist_items,
     )
 
@@ -911,17 +935,26 @@ def purchases():
     rows = PlannedPurchase.query.all()
     rows = sorted(rows, key=lambda p: (p.status != "Active", priority_order.get(p.priority, 1), p.target_date or "9999-12-31", p.name.lower()))
     settings = get_settings()
-    return render_template("purchases.html", purchases=rows, planned_purchase_fortnightly_amount=planned_purchase_fortnightly_amount, first_payday=settings.first_payday)
+    individual_purchase_rows = individual_purchase_contributions(settings.first_payday)
+    return render_template(
+        "purchases.html",
+        purchases=rows,
+        planned_purchase_fortnightly_amount=planned_purchase_fortnightly_amount,
+        first_payday=settings.first_payday,
+        individual_purchase_rows=individual_purchase_rows,
+    )
 
 
 @main.route("/purchases/new", methods=["GET", "POST"])
 @login_required
 def new_purchase():
     form = PlannedPurchaseForm()
-    form.category_id.choices = category_choices("Purchase")
+    prepare_purchase_form(form)
     if form.validate_on_submit():
         purchase = PlannedPurchase()
         form.populate_obj(purchase)
+        if purchase.purchase_scope != "Individual":
+            purchase.owner_name = None
         purchase.target_date = normalise_date_string(purchase.target_date)
         new_category = get_or_create_category(form.new_category_name.data, "Purchase")
         purchase.category_id = new_category.id if new_category else (form.category_id.data or None)
@@ -937,11 +970,11 @@ def new_purchase():
 def edit_purchase(purchase_id):
     purchase = db.session.get(PlannedPurchase, purchase_id)
     form = PlannedPurchaseForm(obj=purchase)
-    form.category_id.choices = category_choices("Purchase")
-    if request.method == "GET":
-        form.category_id.data = purchase.category_id or 0
+    prepare_purchase_form(form, purchase)
     if form.validate_on_submit():
         form.populate_obj(purchase)
+        if purchase.purchase_scope != "Individual":
+            purchase.owner_name = None
         purchase.target_date = normalise_date_string(purchase.target_date)
         new_category = get_or_create_category(form.new_category_name.data, "Purchase")
         purchase.category_id = new_category.id if new_category else (form.category_id.data or None)
@@ -1136,7 +1169,7 @@ def pay_cycle():
 
     bills_due = money(sum(o.amount for o in occurrences if o.status != "Paid"))
     active_bills = RecurringBill.query.filter_by(active=True).all()
-    purchases = PlannedPurchase.query.filter_by(status="Active").all()
+    purchases = shared_active_purchases()
     recurring_average = money(sum(fortnightly_bill_amount(b) for b in active_bills))
     purchase_average = money(sum(planned_purchase_fortnightly_amount(p, settings.first_payday) for p in purchases))
     total_average = money(recurring_average + purchase_average + settings.default_buffer_amount)
@@ -1245,7 +1278,7 @@ def buckets():
 
     settings = get_settings()
     income_sources = IncomeSource.query.filter_by(active=True).order_by(IncomeSource.next_pay_date, IncomeSource.owner_name, IncomeSource.name).all()
-    cycle_start, cycle_end, next_payday = household_pay_cycle(settings.first_payday, income_sources)
+    cycle_start, cycle_end, next_payday = get_cycle_window(settings, income_sources)
     income_items, income_total = income_for_cycle(income_sources, cycle_start, cycle_end)
     bucket_allocations = calculate_bucket_allocations(active_buckets, income_total)
     person_bucket_allocations = calculate_person_bucket_allocations(income_items, active_buckets, income_total)
@@ -1322,13 +1355,13 @@ def delete_bucket(bucket_id):
 def pay_split():
     settings = get_settings()
     income_sources = IncomeSource.query.filter_by(active=True).order_by(IncomeSource.next_pay_date, IncomeSource.name).all()
-    cycle_start, cycle_end, next_payday = household_pay_cycle(settings.first_payday, income_sources)
+    cycle_start, cycle_end, next_payday = get_cycle_window(settings, income_sources)
     income_items, income_total = income_for_cycle(income_sources, cycle_start, cycle_end)
     buckets = Bucket.query.filter_by(active=True).order_by(Bucket.sort_order, Bucket.name).all()
     bucket_allocations = calculate_bucket_allocations(buckets, income_total)
     person_bucket_allocations = calculate_person_bucket_allocations(income_items, buckets, income_total)
     recurring_average = money(sum(fortnightly_bill_amount(b) for b in RecurringBill.query.filter_by(active=True).all()))
-    purchase_average = money(sum(planned_purchase_fortnightly_amount(p, settings.first_payday) for p in PlannedPurchase.query.filter_by(status="Active").all()))
+    purchase_average = money(sum(planned_purchase_fortnightly_amount(p, settings.first_payday) for p in shared_active_purchases()))
     required_set_aside = money(recurring_average + purchase_average + settings.default_buffer_amount)
     bills_bucket_total = money(sum(row["rounded_amount"] for row in bucket_allocations if row["bucket"].bucket_type in ["Bills", "Planned purchases"]))
     bucket_total = money(sum(row["rounded_amount"] for row in bucket_allocations))
@@ -1343,6 +1376,7 @@ def pay_split():
         income_total=income_total,
         bucket_allocations=bucket_allocations,
         person_bucket_allocations=person_bucket_allocations,
+        individual_purchase_rows=individual_purchase_contributions(settings.first_payday),
         recurring_average=recurring_average,
         purchase_average=purchase_average,
         required_set_aside=required_set_aside,
@@ -1436,6 +1470,7 @@ def payday_checklist():
         income_total=income_total,
         bucket_allocations=bucket_allocations,
         person_bucket_allocations=person_bucket_allocations,
+        individual_purchase_rows=individual_purchase_contributions(settings.first_payday),
         checklist_items=checklist_items,
         checklist_rows=checklist_rows,
         hidden_preferences=hidden_preferences,
@@ -1584,6 +1619,8 @@ def purchases_to_rows():
             "category": purchase.category.name if purchase.category else "",
             "priority": purchase.priority,
             "status": purchase.status,
+            "purchase_scope": getattr(purchase, "purchase_scope", "Shared"),
+            "owner_name": getattr(purchase, "owner_name", "") or "",
             "notes": purchase.notes or "",
         })
     return rows

@@ -8,6 +8,8 @@
   <div class="col-md-3">{{ form.target_amount.label(class="form-label") }} {{ form.target_amount(class="form-control") }}</div>
   <div class="col-md-3">{{ form.amount_saved.label(class="form-label") }} {{ form.amount_saved(class="form-control") }}</div>
   <div class="col-md-3">{{ form.target_date.label(class="form-label") }} {{ form.target_date(class="form-control") }}</div>
+  <div class="col-md-3">{{ form.purchase_scope.label(class="form-label") }} {{ help_tip(form.purchase_scope.description) }} {{ form.purchase_scope(class="form-select", id="purchase_scope") }}</div>
+  <div class="col-md-3" id="purchase_owner_wrap">{{ form.owner_name.label(class="form-label") }} {{ help_tip(form.owner_name.description) }} {{ form.owner_name(class="form-select") }}</div>
   <div class="col-md-3">{{ form.category_id.label(class="form-label") }} {{ form.category_id(class="form-select") }}</div>
   <div class="col-md-3">{{ form.new_category_name.label(class="form-label") }} {{ form.new_category_name(class="form-control") }}<div class="form-text">{{ form.new_category_name.description }}</div></div>
   <div class="col-md-3">{{ form.priority.label(class="form-label") }} {{ help_tip("Priority is currently used for sorting and visual importance only. It does not change the set-aside calculation yet.") }} {{ form.priority(class="form-select") }}</div>
@@ -15,4 +17,19 @@
   <div class="col-12">{{ form.notes.label(class="form-label") }} {{ form.notes(class="form-control", rows="3") }}</div>
   <div class="col-12"><button class="btn btn-primary">Save</button> <a href="{{ url_for('main.purchases') }}" class="btn btn-outline-secondary">Cancel</a></div>
 </div></form>
+
+<script>
+(function(){
+  var scope = document.getElementById('purchase_scope');
+  var ownerWrap = document.getElementById('purchase_owner_wrap');
+  function updateOwnerVisibility(){
+    if (!scope || !ownerWrap) return;
+    ownerWrap.style.display = scope.value === 'Individual' ? '' : 'none';
+  }
+  if (scope) {
+    scope.addEventListener('change', updateOwnerVisibility);
+    updateOwnerVisibility();
+  }
+})();
+</script>
 {% endblock %}

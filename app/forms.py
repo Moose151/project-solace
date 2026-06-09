@@ -74,6 +74,13 @@ class PlannedPurchaseForm(FlaskForm):
     target_date = StringField("Target date", validators=[DataRequired()], description="YYYY-MM-DD or DD/MM/YYYY")
     category_id = SelectField("Category", coerce=int, validators=[Optional()])
     new_category_name = StringField("New category", validators=[Optional(), Length(max=80)], description="Optional. Creates a new planned purchase category and uses it for this purchase.")
+    purchase_scope = SelectField(
+        "Purchase type",
+        choices=[("Shared", "Shared purchase"), ("Individual", "Individual purchase")],
+        default="Shared",
+        description="Shared purchases are saved for by the household. Individual purchases are funded from one person's individual spending."
+    )
+    owner_name = SelectField("Person", choices=[], validators=[Optional()], description="Only used for individual planned purchases.")
     priority = SelectField("Priority", choices=[("Low", "Low"), ("Medium", "Medium"), ("High", "High")])
     status = SelectField("Status", choices=[("Active", "Active"), ("Purchased", "Purchased"), ("Paused", "Paused"), ("Cancelled", "Cancelled")])
     notes = TextAreaField("Notes", validators=[Optional()])

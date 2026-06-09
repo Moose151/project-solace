@@ -241,6 +241,18 @@ def planned_purchase_fortnightly_amount(purchase, first_payday):
     return money(remaining / periods)
 
 
+def is_shared_purchase(purchase):
+    """Return True when a planned purchase should be part of household set-aside."""
+    return getattr(purchase, "purchase_scope", "Shared") != "Individual"
+
+
+def planned_purchase_scope_label(purchase):
+    if getattr(purchase, "purchase_scope", "Shared") == "Individual":
+        owner = getattr(purchase, "owner_name", None) or "Unassigned"
+        return f"Individual — {owner}"
+    return "Shared"
+
+
 def round_to_increment(value, increment):
     """Round a transfer amount to the nearest configured dollar increment."""
     increment = int(increment or 1)

@@ -42,6 +42,18 @@
   {% else %}<p class="text-muted mb-0">No income sources fall in this pay cycle.</p>{% endif %}
 </div></div>
 
+{% if individual_purchase_rows %}
+<div class="card shadow-sm mb-4"><div class="card-body"><h2 class="h5">Individual planned purchases</h2><p class="text-muted small">These are funded from the named person's individual spending, not the shared household planned-purchase bucket.</p>
+  <div class="row g-3">
+  {% for row in individual_purchase_rows %}
+    <div class="col-md-6 col-xl-4"><div class="border rounded p-3 h-100"><div class="d-flex justify-content-between"><strong>{{ row.person }}</strong><span>{{ settings.currency_symbol }}{{ '%.2f'|format(row.total) }}/fortnight</span></div>
+      <ul class="small text-muted mt-2 mb-0">{% for item in row.purchases %}<li>{{ item.purchase.name }} — {{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</li>{% endfor %}</ul>
+    </div></div>
+  {% endfor %}
+  </div>
+</div></div>
+{% endif %}
+
 <div class="row g-4">
   <div class="col-lg-5"><div class="card shadow-sm"><div class="card-body"><h2 class="h5">Income this cycle</h2>
     {% if income_items %}<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Date</th><th>Person</th><th>Source</th><th>Amount</th></tr></thead><tbody>{% for item in income_items %}<tr><td>{{ item.date.strftime('%d %b %Y') }}</td><td>{{ item.source.owner_name }}</td><td>{{ item.source.name }}</td><td>{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="text-muted mb-0">No income sources fall in this pay cycle.</p>{% endif %}

@@ -80,6 +80,8 @@ class PlannedPurchase(db.Model):
     category_id = db.Column(db.Integer, db.ForeignKey("category.id"), nullable=True)
     priority = db.Column(db.String(20), nullable=False, default="Medium")
     status = db.Column(db.String(20), nullable=False, default="Active")  # Active, Purchased, Paused, Cancelled
+    purchase_scope = db.Column(db.String(20), nullable=False, default="Shared")  # Shared or Individual
+    owner_name = db.Column(db.String(120), nullable=True)
     notes = db.Column(db.Text, nullable=True)
 
     category = db.relationship("Category")

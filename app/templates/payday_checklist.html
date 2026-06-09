@@ -29,6 +29,21 @@
   {% endfor %}
 </div>
 
+{% if individual_purchase_rows %}
+<div class="card mb-4"><div class="card-body">
+  <h2 class="h5">Individual planned purchases</h2>
+  <p class="text-muted small mb-3">These are not shared transfers. They are suggested amounts to keep from individual spending.</p>
+  <div class="row g-3">
+    {% for row in individual_purchase_rows %}
+    <div class="col-md-6 col-xl-4"><div class="border rounded p-3 h-100">
+      <div class="d-flex justify-content-between"><strong>{{ row.person }}</strong><span>{{ settings.currency_symbol }}{{ '%.2f'|format(row.total) }}/fortnight</span></div>
+      <ul class="small text-muted mt-2 mb-0">{% for item in row.purchases %}<li>{{ item.purchase.name }} — {{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</li>{% endfor %}</ul>
+    </div></div>
+    {% endfor %}
+  </div>
+</div></div>
+{% endif %}
+
 <div class="card"><div class="card-body">
   <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
