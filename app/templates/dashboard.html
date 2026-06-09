@@ -168,7 +168,7 @@
             <div class="d-flex justify-content-between align-items-start mb-3">
               <div>
                 <h2 class="h5 mb-1">Due before next payday</h2>
-                <div class="text-muted small">Unpaid bills due by {{ next_payday.strftime('%d %b %Y') }}</div>
+                <div class="text-muted small">Unpaid bills due by {{ cycle_end.strftime('%d %b %Y') }}</div>
               </div>
               <div class="h5 mb-0">{{ settings.currency_symbol }}{{ '%.2f'|format(current_cycle_unpaid) }}</div>
             </div>
@@ -251,7 +251,7 @@
               <a class="btn btn-outline-primary btn-sm" href="{{ url_for('main.account_balance') }}">Update</a>
             </div>
             <hr>
-            <div class="mini-stat"><span>Unpaid before next payday</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(current_cycle_unpaid) }}</strong></div>
+            <div class="mini-stat"><span>Unpaid this cycle</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(current_cycle_unpaid) }}</strong></div>
             {% if latest_balance %}<div class="mini-stat"><span>Projected after these bills</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(projected_balance_after_cycle) }}</strong></div>{% endif %}
           </div>
         </div>

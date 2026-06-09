@@ -314,7 +314,7 @@ def get_dashboard_widgets():
             ("per_person_contributions", "Individual contributions", True, 40, "wide"),
             ("bills_bucket_health", "Bills bucket health", True, 45, "medium"),
             ("payday_checklist", "Payday checklist", True, 48, "medium"),
-            ("due_before_next_payday", "Due before next payday", True, 50, "wide"),
+            ("due_before_next_payday", "Due this cycle", True, 50, "wide"),
         ]
         for key, title, enabled, sort_order, size in defaults:
             db.session.add(DashboardWidget(widget_key=key, title=title, enabled=enabled, sort_order=sort_order, size=size))
@@ -388,9 +388,12 @@ def dashboard():
 
     notifications = NotificationSetting.query.first()
 
+    # Bills shown in the current pay cycle should stop at the cycle end.
+    # The next payday itself belongs to the next cycle, so including
+    # next_payday here made bills due on payday appear in the previous cycle.
     due_before_next_payday = BillOccurrence.query.filter(
         BillOccurrence.due_date >= today.isoformat(),
-        BillOccurrence.due_date <= next_payday.isoformat(),
+        BillOccurrence.due_date <= cycle_end.isoformat(),
         BillOccurrence.status == "Upcoming",
     ).order_by(BillOccurrence.due_date).all()
 
@@ -509,7 +512,7 @@ def reset_dashboard_layout():
         ("per_person_contributions", "Individual contributions", True, 40, "wide", "How each person contributes to the buckets this cycle."),
         ("bills_bucket_health", "Bills bucket health", True, 45, "medium", "Shows whether the bills bucket covers the fortnightly bills requirement."),
         ("payday_checklist", "Payday checklist", True, 48, "medium", "Quick link to the transfer checklist for payday."),
-        ("due_before_next_payday", "Due before next payday", True, 50, "wide", "Upcoming bills due before the next payday."),
+        ("due_before_next_payday", "Due this cycle", True, 50, "wide", "Upcoming bills due before the current cycle ends."),
         ("overdue_bills", "Overdue bills", True, 60, "wide", "Unpaid bills with due dates before today."),
         ("planned_purchases", "Planned purchases", False, 70, "medium", "Active planned purchases and quick-add saved amount."),
         ("account_balance", "Bills account balance", False, 80, "medium", "Latest manual bills account balance snapshot."),
