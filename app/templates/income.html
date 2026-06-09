@@ -1,24 +1,51 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-  <div><h1 class="mb-1">Income Sources</h1><div class="text-muted">Expected household income used for bucket calculations.</div></div>
+<div class="d-flex justify-content-between align-items-center mb-4 page-actions">
+  <div>
+    <h1 class="mb-1">Income Sources</h1>
+    <div class="text-muted">Expected household income used for pay-cycle and bucket calculations.</div>
+  </div>
   <a class="btn btn-primary" href="{{ url_for('main.new_income') }}">Add income source</a>
 </div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <h2 class="h5 mb-2">How income dates work</h2>
+    <p class="text-muted mb-0">
+      The saved date is a <strong>known payday</strong> used as the fortnightly schedule anchor. It does not need to be manually updated every pay.
+      Solace calculates the actual upcoming payday from it and uses active income sources as the source of truth for the household pay cycle.
+    </p>
+  </div>
+</div>
+
 <div class="card shadow-sm">
   <div class="card-body">
-    {% if income_sources %}
+    {% if income_rows %}
     <div class="table-responsive"><table class="table align-middle">
-      <thead><tr><th>Person</th><th>Name</th><th>Frequency</th><th>Next pay date</th><th>Amount</th><th>Active</th><th></th></tr></thead>
+      <thead>
+        <tr>
+          <th>Person</th>
+          <th>Name</th>
+          <th>Frequency</th>
+          <th>Known payday</th>
+          <th>Upcoming payday</th>
+          <th>Amount</th>
+          <th>Active</th>
+          <th></th>
+        </tr>
+      </thead>
       <tbody>
-      {% for income in income_sources %}
+      {% for row in income_rows %}
+      {% set income = row.income %}
       <tr>
         <td>{{ income.owner_name }}</td>
         <td>{{ income.name }}</td>
         <td>{{ income.frequency }}</td>
-        <td>{{ income.next_pay_date }}</td>
+        <td>{{ row.anchor_pay_date.strftime('%d %b %Y') if row.anchor_pay_date else income.next_pay_date }}</td>
+        <td class="fw-semibold">{{ row.upcoming_pay_date.strftime('%d %b %Y') if row.upcoming_pay_date else '—' }}</td>
         <td>{{ settings.currency_symbol }}{{ '%.2f'|format(income.amount) }}</td>
         <td>{{ 'Yes' if income.active else 'No' }}</td>
-        <td class="text-end">
+        <td class="text-end table-actions">
           <a class="btn btn-outline-primary btn-sm" href="{{ url_for('main.edit_income', income_id=income.id) }}">Edit</a>
           <form class="d-inline" method="post" action="{{ url_for('main.delete_income', income_id=income.id) }}" onsubmit="return confirm('Delete this income source?')">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -30,7 +57,11 @@
       </tbody>
     </table></div>
     {% else %}
-    <p class="text-muted mb-0">No income sources yet. Add each fortnightly household pay so Solace can calculate buckets.</p>
+    <div class="empty-state">
+      <h2 class="h5">No income sources yet</h2>
+      <p class="text-muted">Add each fortnightly household pay so Solace can calculate buckets and the household pay cycle.</p>
+      <a class="btn btn-primary" href="{{ url_for('main.new_income') }}">Add income source</a>
+    </div>
     {% endif %}
   </div>
 </div>

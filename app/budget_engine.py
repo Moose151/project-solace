@@ -155,6 +155,67 @@ def current_pay_cycle(first_payday, today=None):
     return cycle_start, cycle_end, payday
 
 
+
+def next_income_pay_date(income_source, today=None):
+    """Return the next expected pay date for an income source.
+
+    The stored income date is treated as a known/anchor payday, not a value that
+    must be manually updated every fortnight. This keeps old anchor dates useful
+    while still showing the actual upcoming payday.
+    """
+    today = today or date.today()
+    if not income_source or not getattr(income_source, "active", True):
+        return None
+    current = parse_date(getattr(income_source, "next_pay_date", None))
+    if not current:
+        return None
+    interval_days = 14
+    while current < today:
+        current += timedelta(days=interval_days)
+    return current
+
+
+def latest_income_pay_date(income_source, today=None):
+    """Return the most recent pay date on or before today for an income source."""
+    today = today or date.today()
+    current = parse_date(getattr(income_source, "next_pay_date", None))
+    if not current:
+        return None
+    interval_days = 14
+    while current + timedelta(days=interval_days) <= today:
+        current += timedelta(days=interval_days)
+    return current
+
+
+def household_pay_cycle(first_payday, income_sources=None, today=None):
+    """Return the household pay-cycle using income sources as the source of truth.
+
+    If active income sources exist, the earliest income-source anchor date is used
+    as the household cycle anchor. This supports households where two people are
+    paid on different days in the same fortnight while avoiding the confusing
+    global Settings.first_payday value becoming stale or incorrect. If no active
+    income sources exist, the legacy first_payday setting is used as a fallback.
+    """
+    today = today or date.today()
+    active_sources = [source for source in (income_sources or []) if getattr(source, "active", False)]
+
+    anchors = []
+    for source in active_sources:
+        anchor = parse_date(getattr(source, "next_pay_date", None))
+        if anchor:
+            anchors.append(anchor)
+
+    if anchors:
+        anchor = min(anchors)
+        cycle_start = anchor
+        while cycle_start + timedelta(days=14) <= today:
+            cycle_start += timedelta(days=14)
+        cycle_end = cycle_start + timedelta(days=13)
+        next_payday = cycle_start if today <= cycle_start else cycle_start + timedelta(days=14)
+        return cycle_start, cycle_end, next_payday
+
+    return current_pay_cycle(first_payday, today=today)
+
 def fortnights_until(target_date, first_payday, today=None):
     """Count paydays from now until the target date, minimum of one."""
     today = today or date.today()

@@ -15,8 +15,8 @@ from .models import db, User, Settings, Category, RecurringBill, BillOccurrence,
 from .forms import LoginForm, SettingsForm, CategoryForm, RecurringBillForm, PlannedPurchaseForm, AccountBalanceForm, IncomeSourceForm, BucketForm, NotificationSettingsForm
 from .budget_engine import (
     annual_cost, fortnightly_bill_amount, generate_bill_dates,
-    planned_purchase_fortnightly_amount, current_pay_cycle, money, parse_date, income_for_cycle,
-    generate_income_dates, calculate_bucket_allocations, calculate_person_bucket_allocations
+    planned_purchase_fortnightly_amount, current_pay_cycle, household_pay_cycle, money, parse_date, income_for_cycle,
+    generate_income_dates, next_income_pay_date, calculate_bucket_allocations, calculate_person_bucket_allocations
 )
 
 main = Blueprint("main", __name__)
@@ -369,9 +369,8 @@ def dashboard():
     total_set_aside = money(bill_fortnightly_total + purchase_fortnightly_total + buffer_amount)
 
     today = date.today()
-    cycle_start, cycle_end, next_payday = current_pay_cycle(settings.first_payday, today=today)
-
     income_sources = IncomeSource.query.filter_by(active=True).order_by(IncomeSource.next_pay_date, IncomeSource.name).all()
+    cycle_start, cycle_end, next_payday = household_pay_cycle(settings.first_payday, income_sources, today=today)
     income_items, income_total = income_for_cycle(income_sources, cycle_start, cycle_end)
     buckets = Bucket.query.filter_by(active=True).order_by(Bucket.sort_order, Bucket.name).all()
     bucket_allocations = calculate_bucket_allocations(buckets, income_total)
@@ -931,7 +930,8 @@ def skip_occurrence(occurrence_id):
 @login_required
 def pay_cycle():
     settings = get_settings()
-    cycle_start, cycle_end, next_payday = current_pay_cycle(settings.first_payday)
+    income_sources = IncomeSource.query.filter_by(active=True).order_by(IncomeSource.next_pay_date, IncomeSource.name).all()
+    cycle_start, cycle_end, next_payday = household_pay_cycle(settings.first_payday, income_sources)
     occurrences = BillOccurrence.query.filter(
         BillOccurrence.due_date >= cycle_start.isoformat(),
         BillOccurrence.due_date <= cycle_end.isoformat(),
@@ -943,7 +943,6 @@ def pay_cycle():
     recurring_average = money(sum(fortnightly_bill_amount(b) for b in active_bills))
     purchase_average = money(sum(planned_purchase_fortnightly_amount(p, settings.first_payday) for p in purchases))
     total_average = money(recurring_average + purchase_average + settings.default_buffer_amount)
-    income_sources = IncomeSource.query.filter_by(active=True).order_by(IncomeSource.next_pay_date, IncomeSource.name).all()
     income_items, income_total = income_for_cycle(income_sources, cycle_start, cycle_end)
     buckets = Bucket.query.filter_by(active=True).order_by(Bucket.sort_order, Bucket.name).all()
     bucket_allocations = calculate_bucket_allocations(buckets, income_total)
@@ -969,8 +968,17 @@ def pay_cycle():
 @main.route("/income")
 @login_required
 def income_sources():
-    rows = IncomeSource.query.order_by(IncomeSource.active.desc(), IncomeSource.next_pay_date, IncomeSource.name).all()
-    return render_template("income.html", income_sources=rows)
+    rows = IncomeSource.query.order_by(IncomeSource.active.desc(), IncomeSource.owner_name, IncomeSource.next_pay_date, IncomeSource.name).all()
+    today = date.today()
+    income_rows = []
+    for income in rows:
+        upcoming = next_income_pay_date(income, today=today) if income.active else None
+        income_rows.append({
+            "income": income,
+            "upcoming_pay_date": upcoming,
+            "anchor_pay_date": parse_date(income.next_pay_date) if income.next_pay_date else None,
+        })
+    return render_template("income.html", income_rows=income_rows)
 
 
 @main.route("/income/new", methods=["GET", "POST"])
@@ -1035,8 +1043,8 @@ def buckets():
     total_percentage = money(sum(b.percentage for b in rows if b.active and b.fixed_amount in [None, ""]))
 
     settings = get_settings()
-    cycle_start, cycle_end, next_payday = current_pay_cycle(settings.first_payday)
     income_sources = IncomeSource.query.filter_by(active=True).order_by(IncomeSource.next_pay_date, IncomeSource.owner_name, IncomeSource.name).all()
+    cycle_start, cycle_end, next_payday = household_pay_cycle(settings.first_payday, income_sources)
     income_items, income_total = income_for_cycle(income_sources, cycle_start, cycle_end)
     bucket_allocations = calculate_bucket_allocations(active_buckets, income_total)
     person_bucket_allocations = calculate_person_bucket_allocations(income_items, active_buckets, income_total)
@@ -1112,8 +1120,8 @@ def delete_bucket(bucket_id):
 @login_required
 def pay_split():
     settings = get_settings()
-    cycle_start, cycle_end, next_payday = current_pay_cycle(settings.first_payday)
     income_sources = IncomeSource.query.filter_by(active=True).order_by(IncomeSource.next_pay_date, IncomeSource.name).all()
+    cycle_start, cycle_end, next_payday = household_pay_cycle(settings.first_payday, income_sources)
     income_items, income_total = income_for_cycle(income_sources, cycle_start, cycle_end)
     buckets = Bucket.query.filter_by(active=True).order_by(Bucket.sort_order, Bucket.name).all()
     bucket_allocations = calculate_bucket_allocations(buckets, income_total)
@@ -1182,8 +1190,8 @@ def account_balance():
 @login_required
 def payday_checklist():
     settings = get_settings()
-    cycle_start, cycle_end, next_payday = current_pay_cycle(settings.first_payday)
     income_sources = IncomeSource.query.filter_by(active=True).order_by(IncomeSource.next_pay_date, IncomeSource.name).all()
+    cycle_start, cycle_end, next_payday = household_pay_cycle(settings.first_payday, income_sources)
     income_items, income_total = income_for_cycle(income_sources, cycle_start, cycle_end)
     buckets = Bucket.query.filter_by(active=True).order_by(Bucket.sort_order, Bucket.name).all()
     bucket_allocations = calculate_bucket_allocations(buckets, income_total)

@@ -91,7 +91,11 @@ class IncomeSourceForm(FlaskForm):
     name = StringField("Income source name", validators=[DataRequired(), Length(max=120)])
     amount = FloatField("Amount", validators=[DataRequired(), NumberRange(min=0.01)])
     frequency = SelectField("Frequency", choices=[("Fortnightly", "Fortnightly")])
-    next_pay_date = StringField("Next pay date", validators=[DataRequired()], description="YYYY-MM-DD or DD/MM/YYYY")
+    next_pay_date = StringField(
+        "Known pay date",
+        validators=[DataRequired()],
+        description="Enter any known payday for this income. It can be in the past; Solace uses it as the fortnightly schedule anchor."
+    )
     active = BooleanField("Active", default=True)
     notes = TextAreaField("Notes", validators=[Optional()])
     submit = SubmitField("Save income source")
