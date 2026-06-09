@@ -1,69 +1,188 @@
 {% extends "base.html" %}
 {% from "_helpers.html" import help_tip %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h1>Planned Purchases</h1>
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
+  <div>
+    <div class="eyebrow">Planning</div>
+    <h1 class="mb-1">Planned Purchases</h1>
+    <p class="text-muted mb-0">Track shared household targets separately from individual purchases funded from personal spending.</p>
+  </div>
   <a href="{{ url_for('main.new_purchase') }}" class="btn btn-primary">Add purchase</a>
 </div>
-{% if individual_purchase_rows %}
+
 <div class="row g-3 mb-3">
-  {% for row in individual_purchase_rows %}
-  <div class="col-md-6 col-xl-4">
-    <div class="card shadow-sm"><div class="card-body">
-      <div class="eyebrow">Individual planned purchases</div>
-      <h2 class="h5 mb-1">{{ row.person }}</h2>
-      <div class="metric-value">{{ settings.currency_symbol }}{{ '%.2f'|format(row.total) }}</div>
-      <div class="text-muted small">per fortnight from individual spending</div>
+  <div class="col-md-6 col-xl-3">
+    <div class="card shadow-sm summary-card"><div class="card-body">
+      <div class="eyebrow">All active targets</div>
+      <div class="metric-value">{{ settings.currency_symbol }}{{ '%.2f'|format(all_totals.per_fortnight) }}</div>
+      <div class="text-muted small">suggested per fortnight</div>
     </div></div>
   </div>
-  {% endfor %}
+  <div class="col-md-6 col-xl-3">
+    <div class="card shadow-sm summary-card"><div class="card-body">
+      <div class="eyebrow">Shared targets</div>
+      <div class="metric-value">{{ settings.currency_symbol }}{{ '%.2f'|format(shared_totals.per_fortnight) }}</div>
+      <div class="text-muted small">household planned-purchase set-aside</div>
+    </div></div>
+  </div>
+  <div class="col-md-6 col-xl-3">
+    <div class="card shadow-sm summary-card"><div class="card-body">
+      <div class="eyebrow">Remaining</div>
+      <div class="metric-value">{{ settings.currency_symbol }}{{ '%.2f'|format(all_totals.remaining) }}</div>
+      <div class="text-muted small">across all planned purchases</div>
+    </div></div>
+  </div>
+  <div class="col-md-6 col-xl-3">
+    <div class="card shadow-sm summary-card"><div class="card-body">
+      <div class="eyebrow">Active items</div>
+      <div class="metric-value">{{ all_totals.active_count }}</div>
+      <div class="text-muted small">currently being funded</div>
+    </div></div>
+  </div>
 </div>
-{% endif %}
-<div class="card shadow-sm"><div class="card-body">
-<div class="table-responsive"><table class="table table-hover align-middle">
-  <thead><tr><th>Name</th><th>Type</th><th>Priority {{ help_tip("Priority sorts active planned purchases. It does not change the required per-fortnight calculation.") }}</th><th>Target date</th><th>Target</th><th>Saved</th><th>Remaining</th><th>Per fortnight</th><th>Status</th><th>Quick add</th><th></th></tr></thead>
-  <tbody>
-  {% for purchase in purchases %}
-    {% set remaining = purchase.target_amount - purchase.amount_saved %}
-    <tr>
-      <td>
-        <strong>{{ purchase.name }}</strong>
-        {% if purchase.status == 'Active' %}
-          {% set pct = (purchase.amount_saved / purchase.target_amount * 100) if purchase.target_amount else 0 %}
-          <div class="progress mt-2" style="height: 8px;"><div class="progress-bar" style="width: {{ [pct, 100]|min }}%"></div></div>
-        {% endif %}
-      </td>
-      <td><span class="badge badge-soft">{{ planned_purchase_scope_label(purchase) }}</span></td>
-      <td><span class="badge text-bg-{{ 'danger' if purchase.priority == 'High' else 'warning' if purchase.priority == 'Medium' else 'secondary' }}">{{ purchase.priority }}</span></td>
-      <td>{{ purchase.target_date }}</td>
-      <td>{{ settings.currency_symbol }}{{ '%.2f'|format(purchase.target_amount) }}</td>
-      <td>{{ settings.currency_symbol }}{{ '%.2f'|format(purchase.amount_saved) }}</td>
-      <td>{{ settings.currency_symbol }}{{ '%.2f'|format([remaining, 0]|max) }}</td>
-      <td>{{ settings.currency_symbol }}{{ '%.2f'|format(planned_purchase_fortnightly_amount(purchase, first_payday)) }}</td>
-      <td><span class="badge text-bg-{{ 'success' if purchase.status == 'Purchased' else 'primary' if purchase.status == 'Active' else 'secondary' }}">{{ purchase.status }}</span></td>
-      <td>
-        {% if purchase.status == 'Active' %}
-        <form class="d-flex gap-2" method="post" action="{{ url_for('main.add_purchase_saved', purchase_id=purchase.id) }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input class="form-control form-control-sm quick-amount" type="number" step="0.01" min="0.01" name="amount" placeholder="Amount">
-          <button class="btn btn-outline-primary btn-sm">Add</button>
-        </form>
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start gap-3 mb-2">
+          <div>
+            <h2 class="h5 mb-1">Shared planned purchases</h2>
+            <p class="text-muted small mb-0">Both incomes contribute through the household planned-purchase set-aside.</p>
+          </div>
+          <span class="badge badge-soft">{{ settings.currency_symbol }}{{ '%.2f'|format(shared_totals.per_fortnight) }}/fortnight</span>
+        </div>
+        <div class="purchase-stack">
+          {% for row in shared_rows %}
+            {% set purchase = row.purchase %}
+            <div class="purchase-card compact-card">
+              <div class="d-flex justify-content-between align-items-start gap-2">
+                <div>
+                  <strong>{{ purchase.name }}</strong>
+                  <div class="text-muted small">{{ purchase.target_date }} · {{ purchase.priority }} priority · {{ purchase.status }}</div>
+                </div>
+                <span class="badge text-bg-{{ 'success' if purchase.status == 'Purchased' else 'primary' if purchase.status == 'Active' else 'secondary' }}">{{ purchase.status }}</span>
+              </div>
+              <div class="progress mt-2" style="height: 8px;"><div class="progress-bar" style="width: {{ row.progress }}%"></div></div>
+              <div class="d-flex justify-content-between small text-muted mt-2">
+                <span>Saved {{ settings.currency_symbol }}{{ '%.2f'|format(purchase.amount_saved) }} / {{ settings.currency_symbol }}{{ '%.2f'|format(purchase.target_amount) }}</span>
+                <span>{{ settings.currency_symbol }}{{ '%.2f'|format(row.per_fortnight) }}/fortnight</span>
+              </div>
+            </div>
+          {% else %}
+            <p class="text-muted mb-0">No shared planned purchases yet.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-1">Individual planned purchases</h2>
+        <p class="text-muted small">These are guidance amounts to keep aside from the named person’s individual spending.</p>
+        <div class="purchase-stack">
+          {% for person in individual_people %}
+            <div class="purchase-card compact-card">
+              <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                <div>
+                  <strong>{{ person.person }}</strong>
+                  <div class="text-muted small">{{ person.totals.active_count }} active target{{ '' if person.totals.active_count == 1 else 's' }}</div>
+                </div>
+                <span class="badge badge-soft">{{ settings.currency_symbol }}{{ '%.2f'|format(person.total) }}/fortnight</span>
+              </div>
+              {% for row in person.purchases %}
+                {% set purchase = row.purchase %}
+                <div class="individual-purchase-row">
+                  <div>
+                    <strong class="small">{{ purchase.name }}</strong>
+                    <div class="text-muted small">Remaining {{ settings.currency_symbol }}{{ '%.2f'|format(row.remaining) }}</div>
+                  </div>
+                  <span class="small">{{ settings.currency_symbol }}{{ '%.2f'|format(row.per_fortnight) }}</span>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="text-muted mb-0">No individual planned purchases yet.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <div>
+        <h2 class="h5 mb-0">All planned purchases</h2>
+        <p class="text-muted small mb-0">Full list for editing, quick saving, and closing purchases.</p>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Priority {{ help_tip("Priority sorts active planned purchases. It does not change the required per-fortnight calculation.") }}</th>
+            <th>Target date</th>
+            <th>Target</th>
+            <th>Saved</th>
+            <th>Remaining</th>
+            <th>Per fortnight</th>
+            <th>Status</th>
+            <th>Quick add</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for row in purchase_rows %}
+          {% set purchase = row.purchase %}
+          <tr>
+            <td>
+              <strong>{{ purchase.name }}</strong>
+              {% if purchase.status == 'Active' %}
+                <div class="progress mt-2" style="height: 8px;"><div class="progress-bar" style="width: {{ row.progress }}%"></div></div>
+              {% endif %}
+            </td>
+            <td>
+              <span class="badge badge-soft">{{ planned_purchase_scope_label(purchase) }}</span>
+              {% if not row.is_shared %}<div class="text-muted small">{{ row.owner }}</div>{% endif %}
+            </td>
+            <td><span class="badge text-bg-{{ 'danger' if purchase.priority == 'High' else 'warning' if purchase.priority == 'Medium' else 'secondary' }}">{{ purchase.priority }}</span></td>
+            <td>{{ purchase.target_date }}</td>
+            <td>{{ settings.currency_symbol }}{{ '%.2f'|format(purchase.target_amount) }}</td>
+            <td>{{ settings.currency_symbol }}{{ '%.2f'|format(purchase.amount_saved) }}</td>
+            <td>{{ settings.currency_symbol }}{{ '%.2f'|format(row.remaining) }}</td>
+            <td>{{ settings.currency_symbol }}{{ '%.2f'|format(row.per_fortnight) }}</td>
+            <td><span class="badge text-bg-{{ 'success' if purchase.status == 'Purchased' else 'primary' if purchase.status == 'Active' else 'secondary' }}">{{ purchase.status }}</span></td>
+            <td>
+              {% if purchase.status == 'Active' %}
+              <form class="d-flex gap-2" method="post" action="{{ url_for('main.add_purchase_saved', purchase_id=purchase.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input class="form-control form-control-sm quick-amount" type="number" step="0.01" min="0.01" name="amount" placeholder="Amount">
+                <button class="btn btn-outline-primary btn-sm">Add</button>
+              </form>
+              {% else %}
+              <span class="text-muted small">—</span>
+              {% endif %}
+            </td>
+            <td class="text-end text-nowrap">
+              <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.edit_purchase', purchase_id=purchase.id) }}">Edit</a>
+              {% if purchase.status == 'Active' %}
+              <form class="d-inline" method="post" action="{{ url_for('main.mark_purchase_purchased', purchase_id=purchase.id) }}" onsubmit="return confirm('Mark this planned purchase as purchased?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-success btn-sm">Purchased</button></form>
+              {% endif %}
+              <form class="d-inline" method="post" action="{{ url_for('main.delete_purchase', purchase_id=purchase.id) }}" onsubmit="return confirm('Delete this planned purchase?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-danger btn-sm">Delete</button></form>
+            </td>
+          </tr>
         {% else %}
-        <span class="text-muted small">—</span>
-        {% endif %}
-      </td>
-      <td class="text-end text-nowrap">
-        <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.edit_purchase', purchase_id=purchase.id) }}">Edit</a>
-        {% if purchase.status == 'Active' %}
-        <form class="d-inline" method="post" action="{{ url_for('main.mark_purchase_purchased', purchase_id=purchase.id) }}" onsubmit="return confirm('Mark this planned purchase as purchased?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-success btn-sm">Purchased</button></form>
-        {% endif %}
-        <form class="d-inline" method="post" action="{{ url_for('main.delete_purchase', purchase_id=purchase.id) }}" onsubmit="return confirm('Delete this planned purchase?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-danger btn-sm">Delete</button></form>
-      </td>
-    </tr>
-  {% else %}
-    <tr><td colspan="11" class="text-muted">No planned purchases yet.</td></tr>
-  {% endfor %}
-  </tbody>
-</table></div>
-</div></div>
+          <tr><td colspan="11" class="text-muted">No planned purchases yet.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
 {% endblock %}

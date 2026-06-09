@@ -56,6 +56,7 @@
             <li><a class="dropdown-item" href="{{ url_for('main.notifications') }}">Notifications</a></li>
             <li><a class="dropdown-item" href="{{ url_for('main.audit_log') }}">Audit Log</a></li>
             <li><a class="dropdown-item" href="{{ url_for('main.health_check_page') }}">Health Check</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('main.system_info') }}">System Info</a></li>
             <li><hr class="dropdown-divider"></li>
             <li><a class="dropdown-item" href="{{ url_for('main.dashboard_layout') }}">Dashboard Layout</a></li>
             <li><a class="dropdown-item" href="{{ url_for('main.settings_page') }}">Settings</a></li>
@@ -82,6 +83,12 @@
 
   {% block content %}{% endblock %}
 </main>
+{% if current_user.is_authenticated %}
+<footer class="app-footer-version container-fluid container-xl pb-4">
+  <span>Project Solace {{ app_version }}</span>
+  <span class="text-muted">{{ app_release_name }}</span>
+</footer>
+{% endif %}
 {% if current_user.is_authenticated %}
 <nav class="mobile-tabbar" aria-label="Mobile primary navigation">
   <a href="{{ url_for('main.dashboard') }}"><span class="mobile-tabbar-icon">⌂</span><span>Home</span></a>

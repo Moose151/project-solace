@@ -1,6 +1,8 @@
 import csv
 import io
 import os
+import platform
+import subprocess
 import shutil
 import tempfile
 from calendar import Calendar, month_name
@@ -13,6 +15,7 @@ from werkzeug.security import check_password_hash
 
 from .models import db, User, Settings, Category, RecurringBill, BillOccurrence, PlannedPurchase, AccountBalanceSnapshot, IncomeSource, Bucket, DashboardWidget, PaydayChecklistItem, PaydayChecklistPreference, AuditLog, NotificationSetting, CycleCloseout
 from .forms import LoginForm, SettingsForm, CategoryForm, RecurringBillForm, PlannedPurchaseForm, AccountBalanceForm, IncomeSourceForm, BucketForm, NotificationSettingsForm, CycleCloseoutForm
+from .version import APP_VERSION, APP_RELEASE_NAME
 from .budget_engine import (
     annual_cost, fortnightly_bill_amount, generate_bill_dates,
     planned_purchase_fortnightly_amount, current_pay_cycle, household_pay_cycle, money, parse_date, income_for_cycle,
@@ -205,6 +208,39 @@ def get_database_path():
     """Return the SQLite database path from the configured SQLAlchemy URI."""
     uri = current_app.config["SQLALCHEMY_DATABASE_URI"]
     return uri.replace("sqlite:///", "") if uri.startswith("sqlite:///") else uri
+
+
+def get_git_commit():
+    """Return the current Git commit when the source checkout is available."""
+    env_commit = os.environ.get("SOLACE_GIT_COMMIT")
+    if env_commit:
+        return env_commit[:12]
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=current_app.root_path + "/..",
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        return result.stdout.strip()
+    except Exception:
+        return "not available in this build"
+
+
+def file_size_label(path):
+    """Return a compact file-size label for diagnostics."""
+    try:
+        size = os.path.getsize(path)
+    except OSError:
+        return "not found"
+    units = ["B", "KB", "MB", "GB"]
+    value = float(size)
+    for unit in units:
+        if value < 1024 or unit == units[-1]:
+            return f"{value:.1f} {unit}" if unit != "B" else f"{int(value)} B"
+        value /= 1024
 
 
 def parse_bill_import_rows(rows):
@@ -434,12 +470,50 @@ def individual_purchase_contributions(first_payday):
     return sorted(rows.values(), key=lambda row: row["person"].lower())
 
 
+def planned_purchase_summary_rows(purchases, first_payday):
+    """Build display-ready planned-purchase summary rows."""
+    rows = []
+    for purchase in purchases:
+        target = float(purchase.target_amount or 0)
+        saved = float(purchase.amount_saved or 0)
+        remaining = max(target - saved, 0)
+        progress = min(100, (saved / target * 100) if target else 0)
+        rows.append({
+            "purchase": purchase,
+            "remaining": money(remaining),
+            "progress": progress,
+            "per_fortnight": money(planned_purchase_fortnightly_amount(purchase, first_payday)),
+            "is_shared": is_shared_purchase(purchase),
+            "owner": purchase.owner_name or "Unassigned",
+        })
+    return rows
+
+
+def planned_purchase_totals(rows):
+    """Return totals for a list of planned-purchase summary rows."""
+    return {
+        "target": money(sum(row["purchase"].target_amount or 0 for row in rows)),
+        "saved": money(sum(row["purchase"].amount_saved or 0 for row in rows)),
+        "remaining": money(sum(row["remaining"] for row in rows)),
+        "per_fortnight": money(sum(row["per_fortnight"] for row in rows if row["purchase"].status == "Active")),
+        "active_count": sum(1 for row in rows if row["purchase"].status == "Active"),
+    }
+
+
 @main.context_processor
 def inject_globals():
     settings = get_settings()
     theme_mode = settings.theme if settings and settings.theme in ["Light", "Dark", "Auto"] else "Light"
     show_help_tips = True if not settings else bool(getattr(settings, "show_help_tips", True))
-    return {"settings": settings, "money": money, "theme_mode": theme_mode, "show_help_tips": show_help_tips, "planned_purchase_scope_label": planned_purchase_scope_label}
+    return {
+        "settings": settings,
+        "money": money,
+        "theme_mode": theme_mode,
+        "show_help_tips": show_help_tips,
+        "planned_purchase_scope_label": planned_purchase_scope_label,
+        "app_version": APP_VERSION,
+        "app_release_name": APP_RELEASE_NAME,
+    }
 
 
 @main.route("/health")
@@ -904,6 +978,53 @@ def cycle_closeout():
     )
 
 
+@main.route("/system-info")
+@login_required
+def system_info():
+    settings = get_settings()
+    income_sources = IncomeSource.query.filter_by(active=True).all()
+    cycle_start, cycle_end, next_payday = get_cycle_window(settings, income_sources)
+    db_path = get_database_path()
+
+    database_rows = [
+        {"label": "Database URI", "value": current_app.config.get("SQLALCHEMY_DATABASE_URI")},
+        {"label": "Database path", "value": db_path},
+        {"label": "Database exists", "value": "Yes" if os.path.exists(db_path) else "No"},
+        {"label": "Database size", "value": file_size_label(db_path)},
+    ]
+
+    app_rows = [
+        {"label": "App version", "value": APP_VERSION},
+        {"label": "Release", "value": APP_RELEASE_NAME},
+        {"label": "Git commit", "value": get_git_commit()},
+        {"label": "Python", "value": platform.python_version()},
+        {"label": "Flask debug", "value": "On" if current_app.debug else "Off"},
+    ]
+
+    data_rows = [
+        {"label": "Active bills", "value": RecurringBill.query.filter_by(active=True).count()},
+        {"label": "Active income sources", "value": IncomeSource.query.filter_by(active=True).count()},
+        {"label": "Active buckets", "value": Bucket.query.filter_by(active=True).count()},
+        {"label": "Active planned purchases", "value": PlannedPurchase.query.filter_by(status="Active").count()},
+        {"label": "Unpaid bill occurrences", "value": BillOccurrence.query.filter(BillOccurrence.status == "Upcoming").count()},
+        {"label": "Overdue unpaid occurrences", "value": BillOccurrence.query.filter(BillOccurrence.status == "Upcoming", BillOccurrence.due_date < date.today().isoformat()).count()},
+    ]
+
+    cycle_rows = [
+        {"label": "Current cycle", "value": f"{cycle_start.strftime('%d %b %Y')} to {cycle_end.strftime('%d %b %Y')}"},
+        {"label": "Next payday", "value": next_payday.strftime('%d %b %Y')},
+        {"label": "Payday bill handling", "value": getattr(settings, "payday_bill_handling", "new_cycle")},
+    ]
+
+    return render_template(
+        "system_info.html",
+        app_rows=app_rows,
+        database_rows=database_rows,
+        data_rows=data_rows,
+        cycle_rows=cycle_rows,
+    )
+
+
 @main.route("/health-check")
 @login_required
 def health_check_page():
@@ -925,6 +1046,10 @@ def health_check_page():
     checks.append({"status": "ok" if overdue == 0 else "warning", "title": "Overdue bills", "detail": "No overdue unpaid bills." if overdue == 0 else f"{overdue} bills are overdue and unpaid."})
     checks.append({"status": "ok" if getattr(settings, "payday_bill_handling", "new_cycle") in ["new_cycle", "previous_cycle"] else "warning", "title": "Payday bill setting", "detail": "Bills due on payday handling is configured."})
 
+    db_path = get_database_path()
+    checks.append({"status": "ok" if os.path.exists(db_path) else "danger", "title": "Database file", "detail": f"Database path: {db_path}"})
+    checks.append({"status": "ok", "title": "App version", "detail": f"{APP_VERSION} — {APP_RELEASE_NAME}"})
+
     return render_template("health_check.html", checks=checks)
 
 
@@ -935,10 +1060,40 @@ def purchases():
     rows = PlannedPurchase.query.all()
     rows = sorted(rows, key=lambda p: (p.status != "Active", priority_order.get(p.priority, 1), p.target_date or "9999-12-31", p.name.lower()))
     settings = get_settings()
+
+    purchase_rows = planned_purchase_summary_rows(rows, settings.first_payday)
+    shared_rows = [row for row in purchase_rows if row["is_shared"]]
+    individual_rows = [row for row in purchase_rows if not row["is_shared"]]
+
     individual_purchase_rows = individual_purchase_contributions(settings.first_payday)
+    individual_people = []
+    for person_row in individual_purchase_rows:
+        person_rows = [row for row in individual_rows if row["owner"] == person_row["person"]]
+        individual_people.append({
+            "person": person_row["person"],
+            "purchases": person_rows,
+            "total": person_row["total"],
+            "totals": planned_purchase_totals(person_rows),
+        })
+
+    unassigned_individual_rows = [row for row in individual_rows if row["owner"] == "Unassigned"]
+    if unassigned_individual_rows:
+        individual_people.append({
+            "person": "Unassigned",
+            "purchases": unassigned_individual_rows,
+            "total": money(sum(row["per_fortnight"] for row in unassigned_individual_rows if row["purchase"].status == "Active")),
+            "totals": planned_purchase_totals(unassigned_individual_rows),
+        })
+
     return render_template(
         "purchases.html",
         purchases=rows,
+        purchase_rows=purchase_rows,
+        shared_rows=shared_rows,
+        individual_rows=individual_rows,
+        shared_totals=planned_purchase_totals(shared_rows),
+        all_totals=planned_purchase_totals(purchase_rows),
+        individual_people=individual_people,
         planned_purchase_fortnightly_amount=planned_purchase_fortnightly_amount,
         first_payday=settings.first_payday,
         individual_purchase_rows=individual_purchase_rows,

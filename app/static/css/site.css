@@ -1336,3 +1336,68 @@ html[data-bs-theme="dark"] .modern-calendar .calendar-day.today {
   background: var(--hs-surface-soft);
   border: 1px solid var(--hs-border);
 }
+
+/* v24 stability and diagnostics polish */
+.app-footer-version {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  font-size: 0.82rem;
+  color: var(--muted-text, #6f6a61);
+}
+
+.purchase-stack {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.purchase-card,
+.compact-card {
+  border: 1px solid var(--bs-border-color);
+  border-radius: 1rem;
+  padding: 0.9rem;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+[data-bs-theme="dark"] .purchase-card,
+[data-bs-theme="dark"] .compact-card {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.individual-purchase-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.55rem 0;
+  border-top: 1px solid var(--bs-border-color);
+}
+
+.individual-purchase-row:first-of-type {
+  border-top: 0;
+}
+
+.diagnostic-table th {
+  width: 42%;
+  color: var(--muted-text, #6f6a61);
+  font-weight: 600;
+}
+
+.diagnostic-table td {
+  text-align: right;
+}
+
+@media (max-width: 767.98px) {
+  .diagnostic-table th,
+  .diagnostic-table td {
+    display: block;
+    width: 100%;
+    text-align: left;
+  }
+
+  .diagnostic-table tr {
+    display: block;
+    padding: 0.55rem 0;
+    border-bottom: 1px solid var(--bs-border-color);
+  }
+}

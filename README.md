@@ -1,5 +1,7 @@
 # Project Solace
 
+Current build: **v24.0 — System Info + Stability Polish**
+
 Project Solace is a self-hosted household set-aside planner for recurring bills, planned purchases, income sources, and bucket-based payday transfers.
 
 It is intentionally not a full transaction-tracking budget app. Its main job is to answer: **how much should each person transfer into each bucket this pay cycle?**
@@ -22,6 +24,9 @@ It is intentionally not a full transaction-tracking budget app. Its main job is 
 - Notification settings scaffold
 - Dark mode
 - Docker deployment
+- Privacy filter for visible money amounts
+- Shared and individual planned purchases
+- System Info / Diagnostics page
 
 ## Local development
 

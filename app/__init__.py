@@ -8,6 +8,7 @@ from werkzeug.security import generate_password_hash
 from sqlalchemy import text
 
 from .models import db, User, Settings, Category, Bucket, IncomeSource, DashboardWidget, NotificationSetting, PlannedPurchase
+from .version import APP_VERSION, APP_RELEASE_NAME
 
 login_manager = LoginManager()
 login_manager.login_view = "main.login"
@@ -55,6 +56,8 @@ def create_app():
         "pool_pre_ping": True,
     }
     app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
+    app.config["APP_VERSION"] = APP_VERSION
+    app.config["APP_RELEASE_NAME"] = APP_RELEASE_NAME
 
     os.makedirs(app.instance_path, exist_ok=True)
 
