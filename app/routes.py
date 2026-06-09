@@ -326,15 +326,61 @@ def get_dashboard_widgets():
 
 
 
-def get_cycle_window(settings, income_sources, offset=0, today=None):
-    """Return a household pay-cycle window, optionally shifted forward/back."""
-    today = today or date.today()
-    cycle_start, cycle_end, next_payday = get_cycle_window(settings, income_sources, today=today)
+def get_cycle_window(settings, income_sources=None, today=None, offset=0):
+    """Return the pay-cycle window.
+
+    The current cycle is based on the earliest active income source's known
+    payday. That known payday is an anchor date and can be in the past.
+
+    offset=0 returns the current cycle.
+    offset=1 returns the next cycle.
+    offset=-1 returns the previous cycle.
+    """
+    if today is None:
+        today = date.today()
+
+    active_income_sources = [
+        source for source in (income_sources or [])
+        if getattr(source, "active", False) and getattr(source, "next_pay_date", None)
+    ]
+
+    anchor_date = None
+
+    if active_income_sources:
+        # Use the earliest active income date as the household pay-cycle anchor.
+        parsed_dates = []
+        for source in active_income_sources:
+            parsed_date = parse_date(source.next_pay_date)
+            if parsed_date:
+                parsed_dates.append(parsed_date)
+
+        if parsed_dates:
+            anchor_date = min(parsed_dates)
+
+    if anchor_date is None:
+        # Fallback to household settings if no active income source exists.
+        anchor_date = parse_date(settings.first_payday)
+
+    if anchor_date is None:
+        # Final fallback so the app does not crash on an incomplete setup.
+        anchor_date = today
+
+    # Move the cycle anchor forward until today is inside the current cycle.
+    cycle_start = anchor_date
+    while cycle_start + timedelta(days=13) < today:
+        cycle_start += timedelta(days=14)
+
+    # If the anchor is still in the future, move backwards until today fits.
+    while cycle_start > today:
+        cycle_start -= timedelta(days=14)
+
+    # Apply requested cycle offset.
     if offset:
-        shift = timedelta(days=14 * int(offset))
-        cycle_start = cycle_start + shift
-        cycle_end = cycle_end + shift
-        next_payday = next_payday + shift
+        cycle_start += timedelta(days=14 * offset)
+
+    cycle_end = cycle_start + timedelta(days=13)
+    next_payday = cycle_end + timedelta(days=1)
+
     return cycle_start, cycle_end, next_payday
 
 
@@ -1357,6 +1403,14 @@ def payday_checklist():
     hidden_preferences = PaydayChecklistPreference.query.filter_by(hidden=True).order_by(PaydayChecklistPreference.label).all()
     cycle_occurrences = get_cycle_occurrences(settings, cycle_start, cycle_end, next_payday)
     cycle_unpaid = [o for o in cycle_occurrences if o.status == "Upcoming"]
+    cycle_unpaid_total = money(sum(o.amount for o in cycle_unpaid))
+    checklist_rows = [
+        {
+            "item": item,
+            "is_transfer": bool(item.item_key and item.item_key.startswith("transfer_")),
+        }
+        for item in checklist_items
+    ]
 
     if request.method == "POST":
         for item in checklist_items:
@@ -1383,9 +1437,11 @@ def payday_checklist():
         bucket_allocations=bucket_allocations,
         person_bucket_allocations=person_bucket_allocations,
         checklist_items=checklist_items,
+        checklist_rows=checklist_rows,
         hidden_preferences=hidden_preferences,
         cycle_occurrences=cycle_occurrences,
         cycle_unpaid=cycle_unpaid,
+        cycle_unpaid_total=cycle_unpaid_total,
     )
 
 

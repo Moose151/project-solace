@@ -15,7 +15,7 @@
 
 <div class="row g-3 mb-4">
   <div class="col-md-4"><div class="card metric"><div class="card-body"><div class="metric-label">Household income</div><div class="h3">{{ settings.currency_symbol }}{{ '%.2f'|format(income_total) }}</div></div></div></div>
-  <div class="col-md-4"><div class="card metric"><div class="card-body"><div class="metric-label">Bills due this cycle</div><div class="h3">{{ settings.currency_symbol }}{{ '%.2f'|format(cycle_unpaid|sum(attribute='amount')) }}</div><small class="text-muted">Included through {{ due_cutoff.strftime('%d %b') }}</small></div></div></div>
+  <div class="col-md-4"><div class="card metric"><div class="card-body"><div class="metric-label">Bills due this cycle</div><div class="h3">{{ settings.currency_symbol }}{{ '%.2f'|format(cycle_unpaid_total) }}</div><small class="text-muted">Included through {{ due_cutoff.strftime('%d %b') }}</small></div></div></div>
   <div class="col-md-4"><div class="card metric"><div class="card-body"><div class="metric-label">Next payday</div><div class="h3">{{ next_payday.strftime('%d %b') }}</div></div></div></div>
 </div>
 
@@ -34,24 +34,25 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="d-flex justify-content-between align-items-center gap-3 mb-3"><div><h2 class="h5 mb-1">Checklist</h2><p class="text-muted mb-0">Tick off manual transfers or review steps for this pay cycle.</p></div><button class="btn btn-primary">Save checklist</button></div>
     <div class="checklist-stack">
-    {% for item in checklist_items %}
+    {% for row in checklist_rows %}
+      {% set item = row.item %}
       <div class="checklist-row">
         <input class="form-check-input" type="checkbox" name="completed_{{ item.id }}" {% if item.completed %}checked{% endif %}>
         <span class="flex-grow-1">{{ item.label }}{% if item.completed_at %}<br><small class="text-muted">Completed {{ item.completed_at }}</small>{% endif %}</span>
         {% if item.amount %}<strong>{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</strong>{% endif %}
-        {% if item.item_key.startswith('transfer_') %}<button type="submit" form="hide-item-{{ item.id }}" class="btn btn-link btn-sm text-muted p-0 ms-2">Hide if automatic</button>{% endif %}
+        {% if row.is_transfer %}<button type="submit" form="hide-item-{{ item.id }}" class="btn btn-link btn-sm text-muted p-0 ms-2">Hide if automatic</button>{% endif %}
       </div>
     {% else %}<p class="text-muted mb-0">No checklist items generated.</p>{% endfor %}
     </div>
   </form>
 </div></div>
 
-{% for item in checklist_items %}{% if item.item_key.startswith('transfer_') %}
+{% for row in checklist_rows %}{% set item = row.item %}{% if row.is_transfer %}
 <form id="hide-item-{{ item.id }}" method="post" action="{{ url_for('main.hide_payday_checklist_item', item_id=item.id) }}" onsubmit="return confirm('Hide this automatic transfer from future payday checklists?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"></form>
 {% endif %}{% endfor %}
 
 {% if cycle_unpaid %}
-<div class="card mt-4"><div class="card-body"><h2 class="h5">Unpaid bills this cycle</h2><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Date</th><th>Bill</th><th class="text-end">Amount</th></tr></thead><tbody>{% for item in cycle_unpaid %}<tr><td>{{ item.due_date }}</td><td><a href="{{ url_for('main.bill_detail', bill_id=item.bill.id) }}">{{ item.bill.name }}</a></td><td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</td></tr>{% endfor %}</tbody></table></div></div></div>
+<div class="card mt-4"><div class="card-body"><h2 class="h5">Unpaid bills this cycle</h2><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Date</th><th>Bill</th><th class="text-end">Amount</th></tr></thead><tbody>{% for item in cycle_unpaid %}<tr><td>{{ item.due_date }}</td><td>{% if item.bill %}<a href="{{ url_for('main.bill_detail', bill_id=item.bill.id) }}">{{ item.bill.name }}</a>{% else %}Bill{% endif %}</td><td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</td></tr>{% endfor %}</tbody></table></div></div></div>
 {% endif %}
 
 {% if hidden_preferences %}
