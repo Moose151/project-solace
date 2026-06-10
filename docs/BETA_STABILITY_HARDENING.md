@@ -1,6 +1,6 @@
-# Project Solace Beta 0.24.1 Stability Hardening
+# Project Solace Beta 0.24.2 Stability Hardening
 
-Project Solace is still considered beta software. The older v1-v24 labels were rapid internal build numbers used while the app was being shaped. The app now reports beta-style versions, starting with `0.24.1-beta`.
+Project Solace is still considered beta software. The older v1-v24 labels were rapid internal build numbers used while the app was being shaped. The app now reports beta-style versions, starting with `0.24.2-beta`.
 
 This build intentionally avoids major new user-facing features. It focuses on reliability, safety, and pre-stress-test hardening.
 

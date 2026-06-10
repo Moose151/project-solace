@@ -32,7 +32,86 @@
 </div>
 
 {% if selected_view == 'calendar' %}
-<div class="card shadow-sm calendar-card modern-calendar">
+<div class="mobile-calendar-agenda">
+  <div class="mobile-calendar-today-card">
+    <div class="small text-muted">Today</div>
+    <div class="fw-semibold">{{ today.strftime('%a %d/%m/%Y') }}</div>
+    <div class="small text-muted mt-1">Mobile uses agenda view so bills and income are easier to read and tap.</div>
+  </div>
+
+  {% if month_events %}
+    {% set ns = namespace(last_date=None) %}
+    {% for event in month_events %}
+      {% if event.date != ns.last_date %}
+        {% if ns.last_date is not none %}</div>{% endif %}
+        <div class="mobile-calendar-date-group">
+          <div class="mobile-calendar-date-header {{ 'today' if event.date == today else '' }}">
+            <span>{{ event.date.strftime('%A %d/%m/%Y') }}</span>
+            {% if event.date == today %}<span class="today-pill">Today</span>{% endif %}
+          </div>
+        {% set ns.last_date = event.date %}
+      {% endif %}
+
+      <div class="mobile-calendar-event {{ 'income-event' if event.type == 'income' else 'bill-event' }}">
+        <div class="mobile-calendar-event-main">
+          <div>
+            <div class="mobile-calendar-event-title">
+              {% if event.type == 'bill' %}
+                <a href="{{ url_for('main.bill_detail', bill_id=event.occurrence.bill.id) }}">{{ event.title }}</a>
+              {% else %}
+                {{ event.title }}
+              {% endif %}
+            </div>
+            <div class="mobile-calendar-event-meta">
+              {% if event.type == 'income' %}
+                Income · {{ event.source.owner_name }}
+              {% else %}
+                Bill · {{ event.category }} · {{ event.status }}
+              {% endif %}
+            </div>
+          </div>
+          <div class="mobile-calendar-event-amount">{{ settings.currency_symbol }}{{ '%.2f'|format(event.amount) }}</div>
+        </div>
+
+        {% if event.type == 'bill' %}
+          {% set item = event.occurrence %}
+          <div class="mobile-calendar-event-actions">
+            <a class="btn btn-outline-primary btn-sm" href="{{ url_for('main.bill_detail', bill_id=item.bill.id) }}">View</a>
+            {% if item.status == 'Paid' %}
+              <form method="post" action="{{ url_for('main.mark_occurrence_unpaid', occurrence_id=item.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="return_to" value="{{ request.full_path }}">
+                <button class="btn btn-outline-secondary btn-sm">Mark unpaid</button>
+              </form>
+            {% elif item.status == 'Skipped' %}
+              <form method="post" action="{{ url_for('main.mark_occurrence_unpaid', occurrence_id=item.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="return_to" value="{{ request.full_path }}">
+                <button class="btn btn-outline-secondary btn-sm">Restore</button>
+              </form>
+            {% else %}
+              <form method="post" action="{{ url_for('main.mark_occurrence_paid', occurrence_id=item.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="return_to" value="{{ request.full_path }}">
+                <button class="btn btn-success btn-sm">Paid</button>
+              </form>
+              <form method="post" action="{{ url_for('main.skip_occurrence', occurrence_id=item.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="return_to" value="{{ request.full_path }}">
+                <button class="btn btn-outline-secondary btn-sm">Skip</button>
+              </form>
+            {% endif %}
+          </div>
+        {% endif %}
+      </div>
+    {% endfor %}
+    </div>
+  {% else %}
+    <div class="card shadow-sm"><div class="card-body text-muted">No bills or income generated for this month.</div></div>
+  {% endif %}
+</div>
+
+<div class="card shadow-sm calendar-card modern-calendar calendar-desktop-grid">
   <div class="card-body">
     <div class="calendar-grid calendar-head mb-2">
       <div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>

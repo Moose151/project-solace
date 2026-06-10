@@ -1401,3 +1401,122 @@ html[data-bs-theme="dark"] .modern-calendar .calendar-day.today {
     border-bottom: 1px solid var(--bs-border-color);
   }
 }
+
+/* 0.24.2-beta mobile usability fixes ------------------------------------ */
+.app-navbar {
+  z-index: 1060;
+}
+
+@media (max-width: 991.98px) {
+  .app-navbar .navbar-collapse.show,
+  .app-navbar .navbar-collapse.collapsing {
+    max-height: calc(100dvh - 4.25rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-bottom: calc(7rem + env(safe-area-inset-bottom));
+  }
+
+  body.mobile-menu-open .mobile-tabbar {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(calc(1.5rem + env(safe-area-inset-bottom)));
+  }
+
+  .mobile-tabbar {
+    transition: opacity .16s ease, transform .16s ease;
+  }
+}
+
+.mobile-calendar-agenda {
+  display: none;
+}
+
+@media (max-width: 767.98px) {
+  .calendar-desktop-grid {
+    display: none;
+  }
+
+  .mobile-calendar-agenda {
+    display: block;
+  }
+
+  .mobile-calendar-today-card {
+    border: 1px solid var(--hs-border);
+    border-radius: var(--hs-radius);
+    background: var(--hs-primary-soft);
+    padding: .9rem 1rem;
+    margin-bottom: .9rem;
+  }
+
+  .mobile-calendar-date-group {
+    border: 1px solid var(--hs-border);
+    border-radius: var(--hs-radius);
+    background: var(--hs-surface-raised);
+    margin-bottom: .75rem;
+    overflow: hidden;
+  }
+
+  .mobile-calendar-date-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: .75rem;
+    padding: .75rem .9rem;
+    background: var(--hs-surface-muted);
+    border-bottom: 1px solid var(--hs-border);
+    font-weight: 760;
+  }
+
+  .mobile-calendar-date-header.today {
+    background: var(--hs-primary-soft);
+    color: var(--hs-primary-hover);
+  }
+
+  .mobile-calendar-event {
+    padding: .85rem .9rem;
+    border-bottom: 1px solid var(--hs-border);
+  }
+
+  .mobile-calendar-event:last-child {
+    border-bottom: 0;
+  }
+
+  .mobile-calendar-event-main {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: .75rem;
+  }
+
+  .mobile-calendar-event-title {
+    font-weight: 760;
+    line-height: 1.2;
+  }
+
+  .mobile-calendar-event-meta {
+    color: var(--hs-muted);
+    font-size: .9rem;
+    margin-top: .2rem;
+  }
+
+  .mobile-calendar-event-amount {
+    font-weight: 760;
+    white-space: nowrap;
+  }
+
+  .mobile-calendar-event-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .45rem;
+    margin-top: .75rem;
+  }
+
+  .mobile-calendar-event-actions .btn,
+  .mobile-calendar-event-actions form {
+    width: 100%;
+  }
+
+  .mobile-calendar-event-actions form .btn {
+    min-height: 40px;
+  }
+}

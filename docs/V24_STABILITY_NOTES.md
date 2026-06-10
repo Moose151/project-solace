@@ -1,15 +1,15 @@
-# Project Solace Beta 0.24.1 Stability Notes
+# Project Solace Beta 0.24.2 Stability Notes
 
-Project Solace is still in beta. Earlier v-build labels were internal rapid-build labels, not production release versions. The current stability checkpoint is **Beta 0.24.1**.
+Project Solace is still in beta. Earlier v-build labels were internal rapid-build labels, not production release versions. The current mobile usability patch is **Beta 0.24.2**.
 
 This build is focused on reliability before stress testing. Avoid new features until the app has been used through at least one full pay cycle.
 
 ## Post-update checklist
 
-After deploying Beta 0.24.1, check:
+After deploying Beta 0.24.2, check:
 
 1. Dashboard loads.
-2. Footer shows Project Solace `0.24.1-beta`.
+2. Footer shows Project Solace `0.24.2-beta`.
 3. System Info loads.
 4. Health Check loads.
 5. Planned Purchases loads.

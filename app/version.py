@@ -1,2 +1,2 @@
-APP_VERSION = "0.24.1-beta"
-APP_RELEASE_NAME = "Stability Hardening"
+APP_VERSION = "0.24.2-beta"
+APP_RELEASE_NAME = "Mobile Usability Patch"

@@ -154,6 +154,22 @@
       }
     });
   })();
+
+
+  (function solaceMobileMenuState() {
+    document.addEventListener('DOMContentLoaded', function() {
+      var nav = document.getElementById('solaceNav');
+      if (!nav) return;
+
+      nav.addEventListener('show.bs.collapse', function() {
+        document.body.classList.add('mobile-menu-open');
+      });
+      nav.addEventListener('hidden.bs.collapse', function() {
+        document.body.classList.remove('mobile-menu-open');
+      });
+    });
+  })();
+
 </script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 # Project Solace
 
-Current build: **Beta 0.24.1 — Stability Hardening**
+Current build: **Beta 0.24.2 — Mobile Usability Patch**
 
 Project Solace is a self-hosted household set-aside planner for recurring bills, planned purchases, income sources, and bucket-based payday transfers.
 
@@ -14,7 +14,7 @@ Project Solace is still in beta. Earlier ZIP/build labels such as v20-v24 were r
 0.x.y-beta
 ```
 
-The current build is **0.24.1-beta**. Treat this as a beta stability checkpoint before heavier stress testing.
+The current build is **0.24.2-beta**. This is a small mobile usability patch on top of the beta stability checkpoint.
 
 ## Current feature set
 
