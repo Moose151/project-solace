@@ -24,8 +24,9 @@
     <div class="table-responsive"><table class="table align-middle">
       <thead>
         <tr>
-          <th>Person</th>
+          <th>Person / source</th>
           <th>Name</th>
+          <th>Type</th>
           <th>Frequency</th>
           <th>Known payday</th>
           <th>Upcoming payday</th>
@@ -38,8 +39,21 @@
       {% for row in income_rows %}
       {% set income = row.income %}
       <tr>
-        <td>{{ income.owner_name }}</td>
+        <td>
+          {% if income.income_scope == 'Shared' %}
+            <span class="text-muted fst-italic">Household</span>
+          {% else %}
+            {{ income.owner_name }}
+          {% endif %}
+        </td>
         <td>{{ income.name }}</td>
+        <td>
+          {% if income.income_scope == 'Shared' %}
+            <span class="badge bg-secondary">Shared</span>
+          {% else %}
+            <span class="badge bg-light text-dark border">Individual</span>
+          {% endif %}
+        </td>
         <td>{{ income.frequency }}</td>
         <td>{{ row.anchor_pay_date.strftime('%d %b %Y') if row.anchor_pay_date else income.next_pay_date }}</td>
         <td class="fw-semibold">{{ row.upcoming_pay_date.strftime('%d %b %Y') if row.upcoming_pay_date else '—' }}</td>

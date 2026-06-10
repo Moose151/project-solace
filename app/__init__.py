@@ -9,7 +9,7 @@ from flask_wtf.csrf import CSRFProtect
 from werkzeug.security import generate_password_hash
 from sqlalchemy import text
 
-from .models import db, User, Settings, Category, Bucket, IncomeSource, DashboardWidget, NotificationSetting, PlannedPurchase
+from .models import db, User, Settings, Category, Bucket, IncomeSource, SharedIncomeAllocation, DashboardWidget, NotificationSetting, PlannedPurchase
 from .version import APP_VERSION, APP_RELEASE_NAME
 
 login_manager = LoginManager()
@@ -140,6 +140,15 @@ def apply_lightweight_migrations():
 
     if not column_exists("income_source", "owner_name"):
         db.session.execute(text("ALTER TABLE income_source ADD COLUMN owner_name VARCHAR(120) NOT NULL DEFAULT 'Household'"))
+
+    if not column_exists("income_source", "income_scope"):
+        db.session.execute(text("ALTER TABLE income_source ADD COLUMN income_scope VARCHAR(20) NOT NULL DEFAULT 'Individual'"))
+
+    if not column_exists("income_source", "allocation_mode"):
+        db.session.execute(text("ALTER TABLE income_source ADD COLUMN allocation_mode VARCHAR(20) NOT NULL DEFAULT 'standard'"))
+
+    if not column_exists("income_source", "lump_bucket_id"):
+        db.session.execute(text("ALTER TABLE income_source ADD COLUMN lump_bucket_id INTEGER REFERENCES bucket(id)"))
 
     if not column_exists("planned_purchase", "purchase_scope"):
         db.session.execute(text("ALTER TABLE planned_purchase ADD COLUMN purchase_scope VARCHAR(20) NOT NULL DEFAULT 'Shared'"))

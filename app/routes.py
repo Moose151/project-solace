@@ -14,14 +14,15 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request,
 from flask_login import login_user, logout_user, login_required
 from werkzeug.security import check_password_hash
 
-from .models import db, User, Settings, Category, RecurringBill, BillOccurrence, PlannedPurchase, AccountBalanceSnapshot, IncomeSource, Bucket, DashboardWidget, PaydayChecklistItem, PaydayChecklistPreference, AuditLog, NotificationSetting, CycleCloseout
-from .forms import LoginForm, SettingsForm, CategoryForm, RecurringBillForm, PlannedPurchaseForm, AccountBalanceForm, IncomeSourceForm, BucketForm, NotificationSettingsForm, CycleCloseoutForm
+from .models import db, User, Settings, Category, RecurringBill, BillOccurrence, PlannedPurchase, AccountBalanceSnapshot, IncomeSource, SharedIncomeAllocation, Bucket, DashboardWidget, PaydayChecklistItem, PaydayChecklistPreference, AuditLog, NotificationSetting, CycleCloseout
+from .forms import LoginForm, SettingsForm, CategoryForm, RecurringBillForm, PlannedPurchaseForm, AccountBalanceForm, IncomeSourceForm, SharedIncomeAllocationForm, BucketForm, NotificationSettingsForm, CycleCloseoutForm
 from .version import APP_VERSION, APP_RELEASE_NAME
 from .budget_engine import (
     annual_cost, fortnightly_bill_amount, generate_bill_dates,
     planned_purchase_fortnightly_amount, current_pay_cycle, household_pay_cycle, money, parse_date, income_for_cycle,
     generate_income_dates, next_income_pay_date, calculate_bucket_allocations, calculate_person_bucket_allocations,
-    is_shared_purchase, planned_purchase_scope_label
+    is_shared_purchase, planned_purchase_scope_label, calculate_shared_income_bucket_additions,
+    apply_shared_income_allocations,
 )
 
 main = Blueprint("main", __name__)
@@ -423,14 +424,19 @@ def get_dashboard_widgets():
 
 
 def get_cycle_window(settings, income_sources=None, offset=0, today=None):
-    """Return the household pay-cycle window, optionally shifted by 14-day cycles.
+    """Return the household pay-cycle window, optionally shifted by one cycle.
 
     Active income sources are treated as the source of truth. Their stored
     dates are known-payday anchors and can be in the past. This function must
     not call itself; it calculates the current cycle directly from the earliest
     active income anchor and then applies the requested offset.
+
+    Pay frequency (weekly or fortnightly) is read from Settings.pay_frequency.
     """
     today = today or date.today()
+    frequency = getattr(settings, "pay_frequency", "fortnightly") or "fortnightly"
+    interval = 7 if frequency == "weekly" else 14
+
     active_sources = [
         source for source in (income_sources or [])
         if getattr(source, "active", False) and getattr(source, "next_pay_date", None)
@@ -447,17 +453,18 @@ def get_cycle_window(settings, income_sources=None, offset=0, today=None):
     else:
         cycle_start = parse_date(getattr(settings, "first_payday", None)) or today
 
-    while cycle_start + timedelta(days=13) < today:
-        cycle_start += timedelta(days=14)
+    while cycle_start + timedelta(days=interval - 1) < today:
+        cycle_start += timedelta(days=interval)
 
     while cycle_start > today:
-        cycle_start -= timedelta(days=14)
+        cycle_start -= timedelta(days=interval)
 
     if offset:
-        cycle_start += timedelta(days=14 * int(offset))
+        cycle_start += timedelta(days=interval * int(offset))
 
-    cycle_end = cycle_start + timedelta(days=13)
+    cycle_end = cycle_start + timedelta(days=interval - 1)
     next_payday = cycle_end + timedelta(days=1)
+    return cycle_start, cycle_end, next_payday
     return cycle_start, cycle_end, next_payday
 
 
@@ -617,9 +624,35 @@ def dashboard():
     income_sources = IncomeSource.query.filter_by(active=True).order_by(IncomeSource.next_pay_date, IncomeSource.name).all()
     cycle_start, cycle_end, next_payday = get_cycle_window(settings, income_sources, today=today)
     income_items, income_total = income_for_cycle(income_sources, cycle_start, cycle_end)
+
+    # Separate individual and shared income. Bucket percentage math runs only
+    # against individual income so shared income doesn't inflate personal splits.
+    individual_income_total = money(sum(
+        item["amount"] for item in income_items
+        if getattr(item["source"], "income_scope", "Individual") != "Shared"
+    ))
+    shared_income_total = money(income_total - individual_income_total)
+
     buckets = Bucket.query.filter_by(active=True).order_by(Bucket.sort_order, Bucket.name).all()
-    bucket_allocations = calculate_bucket_allocations(buckets, income_total)
-    person_bucket_allocations = calculate_person_bucket_allocations(income_items, buckets, income_total)
+
+    # Standard bucket math runs against individual income only.
+    bucket_allocations = calculate_bucket_allocations(buckets, individual_income_total)
+    person_bucket_allocations = calculate_person_bucket_allocations(income_items, buckets, individual_income_total)
+
+    # Apply shared income on top: standard-mode shared income adds to the pool
+    # after per-person splits; lump/custom go directly to nominated buckets.
+    shared_bucket_additions, shared_standard_pool = calculate_shared_income_bucket_additions(income_items, buckets)
+    if shared_standard_pool:
+        standard_shared_allocations = calculate_bucket_allocations(buckets, shared_standard_pool)
+        for i, row in enumerate(bucket_allocations):
+            row["rounded_amount"] = money(row["rounded_amount"] + standard_shared_allocations[i]["rounded_amount"])
+            row["raw_amount"] = money(row["raw_amount"] + standard_shared_allocations[i]["raw_amount"])
+    for row in bucket_allocations:
+        extra = shared_bucket_additions.get(row["bucket"].id, 0)
+        if extra:
+            row["rounded_amount"] = money(row["rounded_amount"] + extra)
+            row["raw_amount"] = money(row["raw_amount"] + extra)
+
     total_bucket_amount = money(sum(row["rounded_amount"] for row in bucket_allocations))
     remaining_after_buckets = money(income_total - total_bucket_amount)
     bills_bucket_total = money(sum(row["rounded_amount"] for row in bucket_allocations if row["bucket"].bucket_type == "Bills"))
@@ -999,9 +1032,24 @@ def cycle_closeout():
     skipped = [o for o in occurrences if o.status == "Skipped"]
     unpaid = [o for o in occurrences if o.status == "Upcoming"]
     income_items, income_total = income_for_cycle(income_sources, cycle_start, cycle_end)
+    individual_income_total = money(sum(
+        item["amount"] for item in income_items
+        if getattr(item["source"], "income_scope", "Individual") != "Shared"
+    ))
     buckets = Bucket.query.filter_by(active=True).order_by(Bucket.sort_order, Bucket.name).all()
-    bucket_allocations = calculate_bucket_allocations(buckets, income_total)
-    person_bucket_allocations = calculate_person_bucket_allocations(income_items, buckets, income_total)
+    bucket_allocations = calculate_bucket_allocations(buckets, individual_income_total)
+    person_bucket_allocations = calculate_person_bucket_allocations(income_items, buckets, individual_income_total)
+    shared_bucket_additions, shared_standard_pool = calculate_shared_income_bucket_additions(income_items, buckets)
+    if shared_standard_pool:
+        standard_shared_allocations = calculate_bucket_allocations(buckets, shared_standard_pool)
+        for i, row in enumerate(bucket_allocations):
+            row["rounded_amount"] = money(row["rounded_amount"] + standard_shared_allocations[i]["rounded_amount"])
+            row["raw_amount"] = money(row["raw_amount"] + standard_shared_allocations[i]["raw_amount"])
+    for row in bucket_allocations:
+        extra = shared_bucket_additions.get(row["bucket"].id, 0)
+        if extra:
+            row["rounded_amount"] = money(row["rounded_amount"] + extra)
+            row["raw_amount"] = money(row["raw_amount"] + extra)
     checklist_items = ensure_payday_checklist_items(settings, cycle_start, income_items, person_bucket_allocations, bucket_allocations)
 
     if form.validate_on_submit():
@@ -1426,16 +1474,31 @@ def income_sources():
     return render_template("income.html", income_rows=income_rows)
 
 
+def _bucket_choices():
+    """Return (id, name) choices for all active buckets, for use in forms."""
+    return [(b.id, b.name) for b in Bucket.query.filter_by(active=True).order_by(Bucket.sort_order, Bucket.name).all()]
+
+
 @main.route("/income/new", methods=["GET", "POST"])
 @login_required
 def new_income():
     form = IncomeSourceForm()
+    form.lump_bucket_id.choices = [(0, "— select bucket —")] + _bucket_choices()
     if form.validate_on_submit():
         income = IncomeSource()
         form.populate_obj(income)
         income.next_pay_date = normalise_date_string(income.next_pay_date)
+        # Clear fields that don't apply to individual income.
+        if income.income_scope == "Individual":
+            income.allocation_mode = "standard"
+            income.lump_bucket_id = None
+        else:
+            income.owner_name = "Household"
+            if income.lump_bucket_id == 0:
+                income.lump_bucket_id = None
         db.session.add(income)
         db.session.commit()
+        audit("add_income", "IncomeSource", income.name, f"Scope: {income.income_scope}, Freq: {income.frequency}")
         flash("Income source added.", "success")
         return redirect(url_for("main.income_sources"))
     return render_template("income_form.html", form=form, title="Add income source")
@@ -1446,13 +1509,25 @@ def new_income():
 def edit_income(income_id):
     income = db.get_or_404(IncomeSource, income_id)
     form = IncomeSourceForm(obj=income)
+    form.lump_bucket_id.choices = [(0, "— select bucket —")] + _bucket_choices()
     if form.validate_on_submit():
         form.populate_obj(income)
         income.next_pay_date = normalise_date_string(income.next_pay_date)
+        if income.income_scope == "Individual":
+            income.allocation_mode = "standard"
+            income.lump_bucket_id = None
+        else:
+            income.owner_name = "Household"
+            if income.lump_bucket_id == 0:
+                income.lump_bucket_id = None
         db.session.commit()
+        audit("edit_income", "IncomeSource", income.name, f"Scope: {income.income_scope}, Freq: {income.frequency}")
         flash("Income source updated.", "success")
         return redirect(url_for("main.income_sources"))
-    return render_template("income_form.html", form=form, title="Edit income source")
+    allocations = SharedIncomeAllocation.query.filter_by(income_source_id=income_id).order_by(SharedIncomeAllocation.sort_order).all()
+    alloc_form = SharedIncomeAllocationForm()
+    alloc_form.bucket_id.choices = _bucket_choices()
+    return render_template("income_form.html", form=form, title="Edit income source", income=income, allocations=allocations, alloc_form=alloc_form)
 
 
 @main.route("/income/<int:income_id>/delete", methods=["POST"])
@@ -1461,8 +1536,50 @@ def delete_income(income_id):
     income = db.get_or_404(IncomeSource, income_id)
     db.session.delete(income)
     db.session.commit()
+    audit("delete_income", "IncomeSource", income.name, None)
     flash("Income source deleted.", "success")
     return redirect(url_for("main.income_sources"))
+
+
+@main.route("/income/<int:income_id>/allocations/add", methods=["POST"])
+@login_required
+def add_income_allocation(income_id):
+    """Add a custom bucket allocation row to a shared income source."""
+    income = db.get_or_404(IncomeSource, income_id)
+    if income.income_scope != "Shared" or income.allocation_mode != "custom":
+        flash("Custom allocations only apply to shared income sources in custom mode.", "warning")
+        return redirect(url_for("main.edit_income", income_id=income_id))
+
+    form = SharedIncomeAllocationForm()
+    form.bucket_id.choices = _bucket_choices()
+    if form.validate_on_submit():
+        # Enforce single remainder bucket per income source.
+        if form.is_remainder.data:
+            SharedIncomeAllocation.query.filter_by(
+                income_source_id=income_id, is_remainder=True
+            ).update({"is_remainder": False})
+        alloc = SharedIncomeAllocation(income_source_id=income_id)
+        form.populate_obj(alloc)
+        db.session.add(alloc)
+        db.session.commit()
+        flash("Allocation added.", "success")
+    else:
+        flash("Could not add allocation — check the form.", "warning")
+    return redirect(url_for("main.edit_income", income_id=income_id))
+
+
+@main.route("/income/<int:income_id>/allocations/<int:alloc_id>/delete", methods=["POST"])
+@login_required
+def delete_income_allocation(income_id, alloc_id):
+    """Remove a custom bucket allocation row."""
+    alloc = db.get_or_404(SharedIncomeAllocation, alloc_id)
+    if alloc.income_source_id != income_id:
+        flash("Allocation does not belong to this income source.", "danger")
+        return redirect(url_for("main.edit_income", income_id=income_id))
+    db.session.delete(alloc)
+    db.session.commit()
+    flash("Allocation removed.", "success")
+    return redirect(url_for("main.edit_income", income_id=income_id))
 
 
 @main.route("/buckets", methods=["GET", "POST"])

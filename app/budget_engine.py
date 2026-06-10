@@ -139,41 +139,55 @@ def generate_bill_dates(bill, year):
     return due_dates
 
 
-def get_paydays(first_payday, year):
-    """Generate fortnightly payday dates for a selected year."""
+def get_paydays(first_payday, year, frequency="fortnightly"):
+    """Generate payday dates for a selected year.
+
+    Supports weekly and fortnightly household pay cycles.
+    """
     current = parse_date(first_payday)
     year_start = date(year, 1, 1)
     year_end = date(year, 12, 31)
+    interval = 7 if frequency == "weekly" else 14
 
     while current < year_start:
-        current += timedelta(days=14)
+        current += timedelta(days=interval)
 
     paydays = []
     while current <= year_end:
         paydays.append(current)
-        current += timedelta(days=14)
+        current += timedelta(days=interval)
     return paydays
 
 
-def current_pay_cycle(first_payday, today=None):
+def current_pay_cycle(first_payday, today=None, frequency="fortnightly"):
     """Return the current pay-cycle start, end, and next payday."""
     today = today or date.today()
     payday = parse_date(first_payday)
+    interval = 7 if frequency == "weekly" else 14
 
     while payday <= today:
-        payday += timedelta(days=14)
+        payday += timedelta(days=interval)
 
-    cycle_start = payday - timedelta(days=14)
+    cycle_start = payday - timedelta(days=interval)
     cycle_end = payday - timedelta(days=1)
     return cycle_start, cycle_end, payday
 
+
+def income_interval_days(income_source):
+    """Return the payment interval in days for an income source.
+
+    Weekly and Fortnightly are the only supported income frequencies.
+    Any unrecognised value falls back to fortnightly so old data never breaks.
+    """
+    freq = getattr(income_source, "frequency", "Fortnightly") or "Fortnightly"
+    return 7 if freq.lower() == "weekly" else 14
 
 
 def next_income_pay_date(income_source, today=None):
     """Return the next expected pay date for an income source.
 
     The stored income date is treated as a known/anchor payday, not a value that
-    must be manually updated every fortnight. This keeps old anchor dates useful
+    must be manually updated each cycle. This keeps old anchor dates useful
     while still showing the actual upcoming payday.
     """
     today = today or date.today()
@@ -182,9 +196,9 @@ def next_income_pay_date(income_source, today=None):
     current = parse_date(getattr(income_source, "next_pay_date", None))
     if not current:
         return None
-    interval_days = 14
+    interval = income_interval_days(income_source)
     while current < today:
-        current += timedelta(days=interval_days)
+        current += timedelta(days=interval)
     return current
 
 
@@ -194,22 +208,23 @@ def latest_income_pay_date(income_source, today=None):
     current = parse_date(getattr(income_source, "next_pay_date", None))
     if not current:
         return None
-    interval_days = 14
-    while current + timedelta(days=interval_days) <= today:
-        current += timedelta(days=interval_days)
+    interval = income_interval_days(income_source)
+    while current + timedelta(days=interval) <= today:
+        current += timedelta(days=interval)
     return current
 
 
-def household_pay_cycle(first_payday, income_sources=None, today=None):
+def household_pay_cycle(first_payday, income_sources=None, today=None, frequency="fortnightly"):
     """Return the household pay-cycle using income sources as the source of truth.
 
     If active income sources exist, the earliest income-source anchor date is used
     as the household cycle anchor. This supports households where two people are
-    paid on different days in the same fortnight while avoiding the confusing
-    global Settings.first_payday value becoming stale or incorrect. If no active
-    income sources exist, the legacy first_payday setting is used as a fallback.
+    paid on different days in the same cycle while avoiding the confusing global
+    Settings.first_payday value becoming stale or incorrect. If no active income
+    sources exist, the legacy first_payday setting is used as a fallback.
     """
     today = today or date.today()
+    interval = 7 if frequency == "weekly" else 14
     active_sources = [source for source in (income_sources or []) if getattr(source, "active", False)]
 
     anchors = []
@@ -221,16 +236,23 @@ def household_pay_cycle(first_payday, income_sources=None, today=None):
     if anchors:
         anchor = min(anchors)
         cycle_start = anchor
-        while cycle_start + timedelta(days=14) <= today:
-            cycle_start += timedelta(days=14)
-        cycle_end = cycle_start + timedelta(days=13)
-        next_payday = cycle_start if today <= cycle_start else cycle_start + timedelta(days=14)
+        while cycle_start + timedelta(days=interval) <= today:
+            cycle_start += timedelta(days=interval)
+        cycle_end = cycle_start + timedelta(days=interval - 1)
+        next_payday = cycle_start if today <= cycle_start else cycle_start + timedelta(days=interval)
         return cycle_start, cycle_end, next_payday
 
-    return current_pay_cycle(first_payday, today=today)
+    return current_pay_cycle(first_payday, today=today, frequency=frequency)
+
 
 def fortnights_until(target_date, first_payday, today=None):
-    """Count paydays from now until the target date, minimum of one."""
+    """Count pay periods from now until the target date, minimum of one.
+
+    Named 'fortnights_until' for historical reasons but uses the household
+    cycle interval (weekly or fortnightly) when a frequency is derivable.
+    Always counts fortnightly periods for purchase planning purposes since
+    that is how the set-aside calculation is expressed.
+    """
     today = today or date.today()
     target = parse_date(target_date)
     payday = parse_date(first_payday)
@@ -277,8 +299,7 @@ def round_to_increment(value, increment):
 def generate_income_dates(income_source, cycle_start, cycle_end):
     """Generate expected income dates that fall inside a pay cycle.
 
-    The MVP only supports fortnightly income sources because that matches the
-    household use case, but the source stores frequency so it can be expanded.
+    Supports weekly and fortnightly income sources.
     """
     if not income_source.active:
         return []
@@ -287,18 +308,23 @@ def generate_income_dates(income_source, cycle_start, cycle_end):
         return []
     cycle_start = parse_date(cycle_start)
     cycle_end = parse_date(cycle_end)
-    interval_days = 14
+    interval = income_interval_days(income_source)
     while current < cycle_start:
-        current += timedelta(days=interval_days)
+        current += timedelta(days=interval)
     dates = []
     while current <= cycle_end:
         dates.append(current)
-        current += timedelta(days=interval_days)
+        current += timedelta(days=interval)
     return dates
 
 
 def income_for_cycle(income_sources, cycle_start, cycle_end):
-    """Return expected income items and total for a pay cycle."""
+    """Return expected income items and total for a pay cycle.
+
+    Individual and shared income sources are both included here so callers
+    have the full picture. Callers that need to separate them should filter
+    on item["source"].income_scope.
+    """
     items = []
     for source in income_sources:
         for pay_date in generate_income_dates(source, cycle_start, cycle_end):
@@ -315,6 +341,10 @@ def calculate_bucket_allocations(buckets, income_total, household_income_total=N
     household_income_total is the combined pay. Percentage buckets are applied to
     the person's own pay. Fixed amount buckets are split proportionally by income
     share so a fixed household transfer is not duplicated for each person.
+
+    This function only handles individual income. Shared income is applied
+    separately via apply_shared_income_allocations and added to bucket totals
+    after per-person splits are done.
     """
     rows = []
     allocated_total = money(0)
@@ -358,19 +388,121 @@ def calculate_bucket_allocations(buckets, income_total, household_income_total=N
     return rows
 
 
+def apply_shared_income_allocations(income_source, buckets_by_id):
+    """Return a list of allocation rows for one shared income source.
+
+    Each row is {"bucket": Bucket, "amount": float, "label": str}.
+
+    allocation_mode == "standard":
+        Returns an empty list. The caller should add the income amount to the
+        household pool and let the standard bucket math handle it.
+
+    allocation_mode == "lump":
+        The full amount goes to the nominated bucket. Returns one row.
+
+    allocation_mode == "custom":
+        Iterates SharedIncomeAllocation rows in sort_order. The row flagged
+        is_remainder=True receives whatever is left after all others are applied.
+        If no remainder row is defined, any unallocated amount is silently dropped
+        (the UI should warn the user, but the engine stays safe).
+    """
+    mode = getattr(income_source, "allocation_mode", "standard") or "standard"
+    amount = money(income_source.amount)
+    rows = []
+
+    if mode == "standard":
+        return []
+
+    if mode == "lump":
+        bucket = buckets_by_id.get(income_source.lump_bucket_id)
+        if bucket:
+            rows.append({"bucket": bucket, "amount": amount, "label": f"Lump → {bucket.name}"})
+        return rows
+
+    if mode == "custom":
+        allocations = getattr(income_source, "shared_allocations", [])
+        remainder_row = None
+        allocated = money(0)
+
+        for alloc in sorted(allocations, key=lambda a: a.sort_order):
+            bucket = buckets_by_id.get(alloc.bucket_id)
+            if not bucket:
+                continue
+            if alloc.is_remainder:
+                remainder_row = (alloc, bucket)
+                continue
+            alloc_amount = money(amount * (alloc.percentage / 100))
+            allocated = money(allocated + alloc_amount)
+            rows.append({"bucket": bucket, "amount": alloc_amount, "label": f"{money(alloc.percentage)}% → {bucket.name}"})
+
+        if remainder_row:
+            _, bucket = remainder_row
+            leftover = money(max(amount - allocated, 0))
+            rows.append({"bucket": bucket, "amount": leftover, "label": f"Remainder → {bucket.name}"})
+
+        return rows
+
+    return []
+
+
 def income_totals_by_person(income_items):
-    """Group expected pay-cycle income by person."""
+    """Group expected pay-cycle income by person.
+
+    Only individual-scoped income sources are included. Shared income sources
+    are excluded here; they are handled separately in calculate_shared_income_bucket_additions.
+    """
     people = {}
     for item in income_items:
-        person = getattr(item["source"], "owner_name", None) or "Household"
+        source = item["source"]
+        if getattr(source, "income_scope", "Individual") == "Shared":
+            continue
+        person = getattr(source, "owner_name", None) or "Household"
         people.setdefault(person, {"person": person, "income_total": 0, "items": []})
         people[person]["income_total"] = money(people[person]["income_total"] + item["amount"])
         people[person]["items"].append(item)
     return sorted(people.values(), key=lambda row: row["person"].lower())
 
 
+def calculate_shared_income_bucket_additions(income_items, buckets):
+    """Return per-bucket amount additions from shared income sources.
+
+    Returns a dict of {bucket_id: total_amount} for all shared income sources
+    that use lump or custom allocation modes, plus the total shared income that
+    flows back into the standard bucket pool (standard-mode shared income).
+
+    Callers add the per-bucket amounts on top of the standard bucket allocations
+    when building the combined household view, and add standard_pool_amount to
+    the household income total before running standard bucket math.
+    """
+    bucket_additions = {}
+    standard_pool_amount = money(0)
+    buckets_by_id = {b.id: b for b in buckets}
+
+    for item in income_items:
+        source = item["source"]
+        if getattr(source, "income_scope", "Individual") != "Shared":
+            continue
+
+        mode = getattr(source, "allocation_mode", "standard") or "standard"
+
+        if mode == "standard":
+            standard_pool_amount = money(standard_pool_amount + item["amount"])
+            continue
+
+        for row in apply_shared_income_allocations(source, buckets_by_id):
+            bid = row["bucket"].id
+            bucket_additions[bid] = money(bucket_additions.get(bid, 0) + row["amount"])
+
+    return bucket_additions, standard_pool_amount
+
+
 def calculate_person_bucket_allocations(income_items, buckets, household_income_total):
-    """Return bucket transfer rows for each person's pay."""
+    """Return bucket transfer rows for each person's individual pay.
+
+    Shared income sources are excluded — they are not attributed to any person.
+    household_income_total should already exclude shared income so percentages
+    reflect only the individual income pool.
+    """
     people = income_totals_by_person(income_items)
     for person in people:
         allocations = calculate_bucket_allocations(

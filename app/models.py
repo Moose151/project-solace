@@ -104,6 +104,47 @@ class IncomeSource(db.Model):
     active = db.Column(db.Boolean, default=True)
     notes = db.Column(db.Text, nullable=True)
 
+    # Shared income fields.
+    # income_scope: "Individual" (default) or "Shared". Shared income is not
+    # attributed to any person's contribution breakdown; it is added to the
+    # household pool after per-person splits are calculated.
+    income_scope = db.Column(db.String(20), nullable=False, default="Individual")
+    # allocation_mode: how shared income is distributed across buckets.
+    #   "standard"  — flows through the normal bucket percentage/fixed math
+    #   "lump"      — full amount goes to one nominated bucket
+    #   "custom"    — split across nominated buckets using custom percentages;
+    #                 any remainder goes to the bucket flagged is_remainder=True
+    allocation_mode = db.Column(db.String(20), nullable=False, default="standard")
+    # lump_bucket_id: used only when allocation_mode == "lump"
+    lump_bucket_id = db.Column(db.Integer, db.ForeignKey("bucket.id"), nullable=True)
+
+    lump_bucket = db.relationship("Bucket", foreign_keys=[lump_bucket_id])
+    shared_allocations = db.relationship(
+        "SharedIncomeAllocation",
+        back_populates="income_source",
+        cascade="all, delete-orphan",
+        order_by="SharedIncomeAllocation.sort_order",
+    )
+
+
+class SharedIncomeAllocation(db.Model):
+    """Custom bucket split for a shared income source in 'custom' allocation mode.
+
+    Each row says "send <percentage>% of this income source's amount to <bucket>".
+    Exactly one row per income source may have is_remainder=True; that bucket
+    receives whatever is left after all other percentages are applied, matching
+    the cap_to_remaining pattern used in the standard bucket engine.
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    income_source_id = db.Column(db.Integer, db.ForeignKey("income_source.id"), nullable=False, index=True)
+    bucket_id = db.Column(db.Integer, db.ForeignKey("bucket.id"), nullable=False)
+    percentage = db.Column(db.Float, nullable=False, default=0)
+    is_remainder = db.Column(db.Boolean, nullable=False, default=False)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+
+    income_source = db.relationship("IncomeSource", back_populates="shared_allocations")
+    bucket = db.relationship("Bucket")
+
 
 class Bucket(db.Model):
     id = db.Column(db.Integer, primary_key=True)

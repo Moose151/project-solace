@@ -1,2 +1,2 @@
-APP_VERSION = "0.24.2-beta"
-APP_RELEASE_NAME = "Mobile Usability Patch"
+APP_VERSION = "0.25.0-beta"
+APP_RELEASE_NAME = "Shared Income & Weekly Cycles"

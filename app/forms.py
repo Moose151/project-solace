@@ -48,7 +48,7 @@ class SettingsForm(FlaskForm):
     household_name = StringField("Household name", validators=[DataRequired(), Length(max=120)])
     budget_year = IntegerField("Budget year", validators=[DataRequired(), NumberRange(min=2020, max=2100)], render_kw=NUMERIC_INPUT_KWARGS)
     first_payday = StringField("First payday", validators=[DataRequired(), valid_date], description="Use the calendar picker or enter YYYY-MM-DD.", render_kw=DATE_INPUT_KWARGS)
-    pay_frequency = SelectField("Pay frequency", choices=[("fortnightly", "Fortnightly")], description="Solace currently supports fortnightly household pay cycles.")
+    pay_frequency = SelectField("Pay frequency", choices=[("fortnightly", "Fortnightly"), ("weekly", "Weekly")], description="Household pay cycle frequency.")
     default_buffer_amount = FloatField("Default buffer amount", validators=[Optional(), NumberRange(min=0, max=MAX_MONEY_AMOUNT)], render_kw=MONEY_INPUT_KWARGS)
     currency_symbol = StringField("Currency symbol", validators=[DataRequired(), Length(max=5)])
     theme = SelectField("Theme", choices=[("Light", "Light"), ("Dark", "Dark"), ("Auto", "Auto")])
@@ -128,19 +128,53 @@ class AccountBalanceForm(FlaskForm):
 
 
 class IncomeSourceForm(FlaskForm):
-    owner_name = StringField("Person", validators=[DataRequired(), Length(max=120)], description="Who receives this pay, e.g. Nick or partner.")
+    income_scope = SelectField(
+        "Income type",
+        choices=[("Individual", "Individual — belongs to one person"), ("Shared", "Shared — household income (rent, interest, etc.)")],
+        default="Individual",
+        description="Individual income is attributed to a person's contribution breakdown. Shared income is added to the household pool after per-person splits are calculated.",
+    )
+    owner_name = StringField("Person", validators=[Optional(), Length(max=120)], description="Who receives this pay, e.g. Nick or partner. Not used for shared income.")
     name = StringField("Income source name", validators=[DataRequired(), Length(max=120)])
     amount = FloatField("Amount", validators=[DataRequired(), NumberRange(min=0.01, max=MAX_MONEY_AMOUNT)], render_kw=MONEY_INPUT_KWARGS)
-    frequency = SelectField("Frequency", choices=[("Fortnightly", "Fortnightly")], description="Solace currently supports fortnightly income schedules.")
+    frequency = SelectField(
+        "Frequency",
+        choices=[("Fortnightly", "Fortnightly"), ("Weekly", "Weekly")],
+        description="How often this income is received.",
+    )
     next_pay_date = StringField(
         "Known pay date",
         validators=[DataRequired(), valid_date],
-        description="Use the calendar picker. This can be a past payday; Solace uses it as the fortnightly schedule anchor.",
+        description="Use the calendar picker. This can be a past date; Solace uses it as the schedule anchor.",
         render_kw=DATE_INPUT_KWARGS,
     )
     active = BooleanField("Active", default=True)
     notes = TextAreaField("Notes", validators=[Optional()])
+
+    # Shared income allocation fields. These are only relevant when
+    # income_scope == "Shared". The template shows/hides them via JS.
+    allocation_mode = SelectField(
+        "Allocation method",
+        choices=[
+            ("standard", "Standard — flows through normal bucket percentages"),
+            ("lump", "Lump sum — full amount into one bucket"),
+            ("custom", "Custom split — define percentages per bucket"),
+        ],
+        default="standard",
+        description="How this shared income is distributed across buckets.",
+    )
+    lump_bucket_id = SelectField("Destination bucket", coerce=int, validators=[Optional()], description="Used when allocation method is 'Lump sum'.")
+
     submit = SubmitField("Save income source")
+
+
+class SharedIncomeAllocationForm(FlaskForm):
+    """Inline form for one custom allocation row on the income edit page."""
+    bucket_id = SelectField("Bucket", coerce=int, validators=[DataRequired()])
+    percentage = FloatField("Percentage", validators=[Optional(), NumberRange(min=0, max=100)], default=0, render_kw=MONEY_INPUT_KWARGS)
+    is_remainder = BooleanField("Use as remainder bucket", default=False, description="This bucket receives whatever is left after all other percentages are applied.")
+    sort_order = IntegerField("Order", validators=[Optional()], default=0, render_kw=NUMERIC_INPUT_KWARGS)
+    submit = SubmitField("Save allocation")
 
 
 class BucketForm(FlaskForm):
