@@ -9,7 +9,14 @@ if [ ! -f "docker-compose.yml" ]; then
   exit 1
 fi
 
-mkdir -p backups
+mkdir -p backups instance
+if command -v stat >/dev/null 2>&1; then
+  owner="$(stat -c %u instance 2>/dev/null || echo unknown)"
+  if [ "$owner" != "1000" ]; then
+    echo "Note: the Docker container runs as UID 1000. If startup cannot open the database, run: sudo chown -R 1000:1000 instance"
+  fi
+fi
+
 if [ -f "instance/solace.db" ]; then
   stamp="$(date +%Y%m%d-%H%M%S)"
   cp instance/solace.db "backups/solace-before-deploy-${stamp}.db"

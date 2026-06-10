@@ -61,10 +61,10 @@ class RecurringBill(db.Model):
 
 class BillOccurrence(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    recurring_bill_id = db.Column(db.Integer, db.ForeignKey("recurring_bill.id"), nullable=False)
-    due_date = db.Column(db.String(10), nullable=False)
+    recurring_bill_id = db.Column(db.Integer, db.ForeignKey("recurring_bill.id"), nullable=False, index=True)
+    due_date = db.Column(db.String(10), nullable=False, index=True)
     amount = db.Column(db.Float, nullable=False)
-    status = db.Column(db.String(20), nullable=False, default="Upcoming")  # Upcoming, Paid, Skipped
+    status = db.Column(db.String(20), nullable=False, default="Upcoming", index=True)  # Upcoming, Paid, Skipped
     paid_date = db.Column(db.String(10), nullable=True)
     notes = db.Column(db.Text, nullable=True)
 
@@ -130,7 +130,7 @@ class DashboardWidget(db.Model):
 
 class PaydayChecklistItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    cycle_start = db.Column(db.String(10), nullable=False)
+    cycle_start = db.Column(db.String(10), nullable=False, index=True)
     item_key = db.Column(db.String(120), nullable=False)
     label = db.Column(db.String(255), nullable=False)
     amount = db.Column(db.Float, nullable=True)
@@ -149,13 +149,15 @@ class PaydayChecklistPreference(db.Model):
 
 class AuditLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    created_at = db.Column(db.String(25), nullable=False)
+    created_at = db.Column(db.String(25), nullable=False, index=True)
     action = db.Column(db.String(80), nullable=False)
     entity_type = db.Column(db.String(80), nullable=True)
     entity_name = db.Column(db.String(160), nullable=True)
     details = db.Column(db.Text, nullable=True)
 
 
+# Notification webhook URLs/tokens are stored in plaintext for this local, self-hosted household tool.
+# Do not store external email/API credentials here without revisiting secret storage.
 class NotificationSetting(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     enabled = db.Column(db.Boolean, default=False)

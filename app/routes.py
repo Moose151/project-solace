@@ -1,5 +1,6 @@
 import csv
 import io
+import json
 import os
 import platform
 import subprocess
@@ -9,7 +10,7 @@ from calendar import Calendar, month_name
 from datetime import date, datetime, timedelta
 from zipfile import ZipFile, ZIP_DEFLATED
 
-from flask import Blueprint, render_template, redirect, url_for, flash, request, Response, send_file, current_app, session
+from flask import Blueprint, render_template, redirect, url_for, flash, request, Response, send_file, current_app
 from flask_login import login_user, logout_user, login_required
 from werkzeug.security import check_password_hash
 
@@ -24,6 +25,64 @@ from .budget_engine import (
 )
 
 main = Blueprint("main", __name__)
+
+MAX_IMPORT_PREVIEW_ROWS = 250
+MAX_IMPORT_UPLOAD_BYTES = 5 * 1024 * 1024
+MAX_RESTORE_UPLOAD_BYTES = 50 * 1024 * 1024
+
+
+def check_upload_size(file_storage, max_bytes):
+    """Return False when an uploaded file exceeds a configured byte limit."""
+    if not file_storage:
+        return False
+    stream = file_storage.stream
+    current = stream.tell()
+    stream.seek(0, os.SEEK_END)
+    size = stream.tell()
+    stream.seek(current)
+    return size <= max_bytes
+
+
+def bill_import_preview_path():
+    return os.path.join(current_app.instance_path, "bill_import_preview.json")
+
+
+def save_bill_import_preview(rows):
+    os.makedirs(current_app.instance_path, exist_ok=True)
+    with open(bill_import_preview_path(), "w", encoding="utf-8") as preview_file:
+        json.dump(rows, preview_file)
+
+
+def load_bill_import_preview():
+    path = bill_import_preview_path()
+    if not os.path.exists(path):
+        return []
+    try:
+        with open(path, "r", encoding="utf-8") as preview_file:
+            return json.load(preview_file)
+    except (OSError, json.JSONDecodeError):
+        return []
+
+
+def clear_bill_import_preview():
+    try:
+        os.unlink(bill_import_preview_path())
+    except FileNotFoundError:
+        pass
+
+
+def send_temp_file(path, *, download_name, mimetype=None):
+    """Send a generated temporary file and remove it when the response closes."""
+    response = send_file(path, as_attachment=True, download_name=download_name, mimetype=mimetype)
+
+    def cleanup():
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
+    response.call_on_close(cleanup)
+    return response
 
 
 def get_settings():
@@ -868,7 +927,7 @@ def new_bill():
 @main.route("/bills/<int:bill_id>/edit", methods=["GET", "POST"])
 @login_required
 def edit_bill(bill_id):
-    bill = db.session.get(RecurringBill, bill_id)
+    bill = db.get_or_404(RecurringBill, bill_id)
     form = RecurringBillForm(obj=bill)
     form.category_id.choices = category_choices("Bill")
     if request.method == "GET":
@@ -890,7 +949,7 @@ def edit_bill(bill_id):
 @main.route("/bills/<int:bill_id>/delete", methods=["POST"])
 @login_required
 def delete_bill(bill_id):
-    bill = db.session.get(RecurringBill, bill_id)
+    bill = db.get_or_404(RecurringBill, bill_id)
     audit("delete_bill", "RecurringBill", bill.name if bill else "Unknown", "Deleted recurring bill")
     db.session.delete(bill)
     db.session.commit()
@@ -902,10 +961,7 @@ def delete_bill(bill_id):
 @main.route("/bills/<int:bill_id>")
 @login_required
 def bill_detail(bill_id):
-    bill = db.session.get(RecurringBill, bill_id)
-    if not bill:
-        flash("Bill not found.", "warning")
-        return redirect(url_for("main.bills"))
+    bill = db.get_or_404(RecurringBill, bill_id)
     today_iso = date.today().isoformat()
     upcoming = BillOccurrence.query.filter(
         BillOccurrence.recurring_bill_id == bill.id,
@@ -1123,7 +1179,7 @@ def new_purchase():
 @main.route("/purchases/<int:purchase_id>/edit", methods=["GET", "POST"])
 @login_required
 def edit_purchase(purchase_id):
-    purchase = db.session.get(PlannedPurchase, purchase_id)
+    purchase = db.get_or_404(PlannedPurchase, purchase_id)
     form = PlannedPurchaseForm(obj=purchase)
     prepare_purchase_form(form, purchase)
     if form.validate_on_submit():
@@ -1142,7 +1198,7 @@ def edit_purchase(purchase_id):
 @main.route("/purchases/<int:purchase_id>/delete", methods=["POST"])
 @login_required
 def delete_purchase(purchase_id):
-    purchase = db.session.get(PlannedPurchase, purchase_id)
+    purchase = db.get_or_404(PlannedPurchase, purchase_id)
     db.session.delete(purchase)
     db.session.commit()
     flash("Planned purchase deleted.", "success")
@@ -1152,7 +1208,7 @@ def delete_purchase(purchase_id):
 @main.route("/purchases/<int:purchase_id>/add-saved", methods=["POST"])
 @login_required
 def add_purchase_saved(purchase_id):
-    purchase = db.session.get(PlannedPurchase, purchase_id)
+    purchase = db.get_or_404(PlannedPurchase, purchase_id)
     try:
         amount = float(request.form.get("amount", 0))
     except ValueError:
@@ -1174,7 +1230,7 @@ def add_purchase_saved(purchase_id):
 @main.route("/purchases/<int:purchase_id>/mark-purchased", methods=["POST"])
 @login_required
 def mark_purchase_purchased(purchase_id):
-    purchase = db.session.get(PlannedPurchase, purchase_id)
+    purchase = db.get_or_404(PlannedPurchase, purchase_id)
     purchase.status = "Purchased"
     purchase.amount_saved = max(purchase.amount_saved, purchase.target_amount)
     db.session.commit()
@@ -1279,7 +1335,7 @@ def month_view(year, month):
 @main.route("/occurrences/<int:occurrence_id>/paid", methods=["POST"])
 @login_required
 def mark_occurrence_paid(occurrence_id):
-    occurrence = db.session.get(BillOccurrence, occurrence_id)
+    occurrence = db.get_or_404(BillOccurrence, occurrence_id)
     occurrence.status = "Paid"
     occurrence.paid_date = date.today().isoformat()
     audit("mark_bill_paid", "BillOccurrence", occurrence.bill.name if occurrence.bill else "Bill", occurrence.due_date)
@@ -1291,7 +1347,7 @@ def mark_occurrence_paid(occurrence_id):
 @main.route("/occurrences/<int:occurrence_id>/unpaid", methods=["POST"])
 @login_required
 def mark_occurrence_unpaid(occurrence_id):
-    occurrence = db.session.get(BillOccurrence, occurrence_id)
+    occurrence = db.get_or_404(BillOccurrence, occurrence_id)
     occurrence.status = "Upcoming"
     occurrence.paid_date = None
     audit("mark_bill_unpaid", "BillOccurrence", occurrence.bill.name if occurrence.bill else "Bill", occurrence.due_date)
@@ -1303,7 +1359,7 @@ def mark_occurrence_unpaid(occurrence_id):
 @main.route("/occurrences/<int:occurrence_id>/skip", methods=["POST"])
 @login_required
 def skip_occurrence(occurrence_id):
-    occurrence = db.session.get(BillOccurrence, occurrence_id)
+    occurrence = db.get_or_404(BillOccurrence, occurrence_id)
     occurrence.status = "Skipped"
     occurrence.paid_date = None
     audit("skip_bill", "BillOccurrence", occurrence.bill.name if occurrence.bill else "Bill", occurrence.due_date)
@@ -1388,7 +1444,7 @@ def new_income():
 @main.route("/income/<int:income_id>/edit", methods=["GET", "POST"])
 @login_required
 def edit_income(income_id):
-    income = db.session.get(IncomeSource, income_id)
+    income = db.get_or_404(IncomeSource, income_id)
     form = IncomeSourceForm(obj=income)
     if form.validate_on_submit():
         form.populate_obj(income)
@@ -1402,7 +1458,7 @@ def edit_income(income_id):
 @main.route("/income/<int:income_id>/delete", methods=["POST"])
 @login_required
 def delete_income(income_id):
-    income = db.session.get(IncomeSource, income_id)
+    income = db.get_or_404(IncomeSource, income_id)
     db.session.delete(income)
     db.session.commit()
     flash("Income source deleted.", "success")
@@ -1481,7 +1537,7 @@ def buckets():
 @main.route("/buckets/<int:bucket_id>/edit", methods=["GET", "POST"])
 @login_required
 def edit_bucket(bucket_id):
-    bucket = db.session.get(Bucket, bucket_id)
+    bucket = db.get_or_404(Bucket, bucket_id)
     form = BucketForm(obj=bucket)
     if form.validate_on_submit():
         if apply_bucket_form(bucket, form):
@@ -1498,7 +1554,7 @@ def edit_bucket(bucket_id):
 @main.route("/buckets/<int:bucket_id>/delete", methods=["POST"])
 @login_required
 def delete_bucket(bucket_id):
-    bucket = db.session.get(Bucket, bucket_id)
+    bucket = db.get_or_404(Bucket, bucket_id)
     db.session.delete(bucket)
     db.session.commit()
     flash("Bucket deleted.", "success")
@@ -1638,7 +1694,7 @@ def payday_checklist():
 @main.route("/payday-checklist/items/<int:item_id>/hide", methods=["POST"])
 @login_required
 def hide_payday_checklist_item(item_id):
-    item = db.session.get(PaydayChecklistItem, item_id)
+    item = db.get_or_404(PaydayChecklistItem, item_id)
     if not item:
         flash("Checklist item not found.", "warning")
         return redirect(url_for("main.payday_checklist"))
@@ -1687,6 +1743,10 @@ def backup_restore():
         if not upload or not upload.filename:
             flash("Choose a .db or .zip backup file.", "warning")
             return redirect(url_for("main.backup_restore"))
+        if not check_upload_size(upload, MAX_RESTORE_UPLOAD_BYTES):
+            flash("Backup file is too large. Maximum restore upload size is 50 MB.", "danger")
+            return redirect(url_for("main.backup_restore"))
+        restore_tmp_path = None
         try:
             os.makedirs(backup_dir, exist_ok=True)
             safety_backup = os.path.join(backup_dir, f"pre-restore-{datetime.now().strftime('%Y%m%d-%H%M%S')}.db")
@@ -1694,6 +1754,7 @@ def backup_restore():
                 shutil.copy2(db_path, safety_backup)
             raw = upload.read()
             restore_tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
+            restore_tmp_path = restore_tmp.name
             restore_tmp.close()
             if upload.filename.lower().endswith(".zip"):
                 with ZipFile(io.BytesIO(raw), "r") as zipf:
@@ -1713,6 +1774,12 @@ def backup_restore():
             flash("Database restored. Restart Project Solace now so all pages use the restored file.", "success")
         except Exception as exc:
             flash(f"Restore failed: {exc}", "danger")
+        finally:
+            if restore_tmp_path:
+                try:
+                    os.unlink(restore_tmp_path)
+                except OSError:
+                    pass
         return redirect(url_for("main.backup_restore"))
 
     return render_template("backup_restore.html", db_path=db_path, last_backup=last_backup)
@@ -1831,7 +1898,7 @@ def make_csv_response(filename, rows):
 @main.route("/data")
 @login_required
 def data_tools():
-    return render_template("data_tools.html", import_preview=session.get("bill_import_preview") or [])
+    return render_template("data_tools.html", import_preview=load_bill_import_preview())
 
 
 @main.route("/data/export/bills.csv")
@@ -1894,7 +1961,7 @@ def export_backup_xlsx():
     tmp.close()
     audit("export_backup_xlsx", "Backup", "Readable XLSX backup", "Downloaded readable backup")
     db.session.commit()
-    return send_file(tmp.name, as_attachment=True, download_name="project-solace-backup.xlsx")
+    return send_temp_file(tmp.name, download_name="project-solace-backup.xlsx")
 
 
 @main.route("/data/export/database.zip")
@@ -1908,7 +1975,7 @@ def export_database_zip():
             zipf.write(db_path, arcname="solace.db")
     audit("export_database_zip", "Backup", "SQLite database ZIP", "Downloaded database backup")
     db.session.commit()
-    return send_file(tmp.name, as_attachment=True, download_name="project-solace-database-backup.zip")
+    return send_temp_file(tmp.name, download_name="project-solace-database-backup.zip")
 
 
 def read_uploaded_rows(file_storage):
@@ -1951,10 +2018,15 @@ def import_bills():
     if not upload or not upload.filename:
         flash("Choose a CSV or XLSX file first.", "warning")
         return redirect(url_for("main.data_tools"))
+    if not check_upload_size(upload, MAX_IMPORT_UPLOAD_BYTES):
+        flash("Import file is too large. Maximum import upload size is 5 MB.", "danger")
+        return redirect(url_for("main.data_tools"))
     try:
         raw_rows = read_uploaded_rows(upload)
+        if len(raw_rows) > MAX_IMPORT_PREVIEW_ROWS:
+            raise ValueError(f"Import files are limited to {MAX_IMPORT_PREVIEW_ROWS} rows per preview.")
         parsed_rows, error_count = parse_bill_import_rows(raw_rows)
-        session["bill_import_preview"] = parsed_rows
+        save_bill_import_preview(parsed_rows)
         if error_count:
             flash(f"Import preview found {error_count} row(s) with errors. Fix the file or import only after reviewing.", "warning")
         else:
@@ -1968,7 +2040,7 @@ def import_bills():
 @main.route("/data/import/bills/confirm", methods=["POST"])
 @login_required
 def confirm_import_bills():
-    parsed_rows = session.get("bill_import_preview") or []
+    parsed_rows = load_bill_import_preview()
     if not parsed_rows:
         flash("No bill import preview is waiting to be confirmed.", "warning")
         return redirect(url_for("main.data_tools"))
@@ -1999,7 +2071,7 @@ def confirm_import_bills():
             imported += 1
         audit("import_bills", "RecurringBill", "Bill import", f"Imported {imported} bills from preview")
         db.session.commit()
-        session.pop("bill_import_preview", None)
+        clear_bill_import_preview()
         flash(f"Imported {imported} recurring bills.", "success")
     except Exception as exc:
         db.session.rollback()
@@ -2010,6 +2082,6 @@ def confirm_import_bills():
 @main.route("/data/import/bills/cancel", methods=["POST"])
 @login_required
 def cancel_import_bills():
-    session.pop("bill_import_preview", None)
+    clear_bill_import_preview()
     flash("Bill import preview cleared.", "info")
     return redirect(url_for("main.data_tools"))

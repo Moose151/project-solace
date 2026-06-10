@@ -1,5 +1,7 @@
 import os
+import warnings
 from contextlib import contextmanager
+from datetime import date
 
 from flask import Flask
 from flask_login import LoginManager
@@ -29,20 +31,32 @@ def startup_database_lock(app):
     with open(lock_path, "w") as lock_file:
         try:
             import fcntl
+        except ImportError:
+            # Windows development fallback. The production Docker path is Linux
+            # and still uses a real file lock.
+            yield
+            return
+
+        try:
             fcntl.flock(lock_file, fcntl.LOCK_EX)
             yield
         finally:
-            try:
-                fcntl.flock(lock_file, fcntl.LOCK_UN)
-            except Exception:
-                pass
+            fcntl.flock(lock_file, fcntl.LOCK_UN)
 
 
 def create_app():
     """Create and configure the Project Solace Flask app."""
     app = Flask(__name__, instance_relative_config=True)
 
-    app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY", "dev-change-me")
+    secret_key = os.environ.get("FLASK_SECRET_KEY")
+    if not secret_key:
+        warnings.warn(
+            "FLASK_SECRET_KEY is not set. Using an insecure development fallback.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        secret_key = "dev-change-me"
+    app.config["SECRET_KEY"] = secret_key
     app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
         "DATABASE_URL",
         "sqlite:///" + os.path.join(app.instance_path, "solace.db"),
@@ -91,10 +105,10 @@ def configure_sqlite():
     if not uri.startswith("sqlite"):
         return
 
-    db.session.execute(text("PRAGMA journal_mode=WAL"))
-    db.session.execute(text("PRAGMA synchronous=NORMAL"))
-    db.session.execute(text("PRAGMA busy_timeout=30000"))
-    db.session.commit()
+    with db.engine.connect() as connection:
+        connection.execute(text("PRAGMA journal_mode=WAL"))
+        connection.execute(text("PRAGMA synchronous=NORMAL"))
+        connection.execute(text("PRAGMA busy_timeout=30000"))
 
 
 def column_exists(table_name, column_name):
@@ -133,25 +147,16 @@ def apply_lightweight_migrations():
     if not column_exists("planned_purchase", "owner_name"):
         db.session.execute(text("ALTER TABLE planned_purchase ADD COLUMN owner_name VARCHAR(120)"))
 
-    if not Bucket.query.first():
-        starter_buckets = [
-            ("Bills", 25, 10, "Bills", 10),
-            ("Savings", 20, 10, "Savings", 20),
-            ("Shared spending", 45, 10, "Spending", 30),
-            ("Individual spending", 10, 10, "Other", 40),
-        ]
-        for name, percentage, rounding_increment, bucket_type, sort_order in starter_buckets:
-            db.session.add(Bucket(
-                name=name,
-                percentage=percentage,
-                rounding_increment=rounding_increment,
-                bucket_type=bucket_type,
-                sort_order=sort_order,
-                active=True,
-            ))
-
     for purchase in PlannedPurchase.query.filter((PlannedPurchase.purchase_scope == None) | (PlannedPurchase.purchase_scope == "")).all():
         purchase.purchase_scope = "Shared"
+
+    # Indexes added during beta hardening. CREATE INDEX IF NOT EXISTS keeps
+    # existing SQLite installs upgrade-safe without Alembic.
+    db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_bill_occurrence_due_date ON bill_occurrence (due_date)"))
+    db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_bill_occurrence_status ON bill_occurrence (status)"))
+    db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_bill_occurrence_recurring_bill_id ON bill_occurrence (recurring_bill_id)"))
+    db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_payday_checklist_item_cycle_start ON payday_checklist_item (cycle_start)"))
+    db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_audit_log_created_at ON audit_log (created_at)"))
 
     capped_buckets = Bucket.query.filter(Bucket.cap_to_remaining.is_(True)).order_by(Bucket.sort_order, Bucket.name).all()
     for bucket in capped_buckets[1:]:
@@ -190,7 +195,7 @@ def seed_dashboard_widgets():
                 size=size,
                 description=description,
             ))
-
+    db.session.commit()
 
 
 def seed_notification_settings():
@@ -212,7 +217,14 @@ def seed_default_data():
     rows or hit the default admin UNIQUE constraint.
     """
     username = os.environ.get("SOLACE_ADMIN_USERNAME", "admin")
-    password = os.environ.get("SOLACE_ADMIN_PASSWORD", "admin")
+    password = os.environ.get("SOLACE_ADMIN_PASSWORD")
+    if not password:
+        warnings.warn(
+            "SOLACE_ADMIN_PASSWORD is not set. Using an insecure development fallback.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        password = "admin"
 
     if not User.query.filter_by(username=username).first():
         db.session.add(User(
@@ -226,8 +238,8 @@ def seed_default_data():
     if not Settings.query.first():
         db.session.add(Settings(
             household_name="Project Solace",
-            budget_year=2026,
-            first_payday="2026-01-09",
+            budget_year=date.today().year,
+            first_payday=date.today().isoformat(),
             pay_frequency="fortnightly",
             default_buffer_amount=0,
             currency_symbol="$",

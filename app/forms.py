@@ -1,9 +1,37 @@
+import re
+
 from flask_wtf import FlaskForm
 from wtforms import (
     StringField, PasswordField, FloatField, IntegerField, SelectField,
     BooleanField, TextAreaField, SubmitField
 )
-from wtforms.validators import DataRequired, NumberRange, Optional, Length
+from wtforms.validators import DataRequired, NumberRange, Optional, Length, ValidationError
+
+from .budget_engine import parse_date
+
+MAX_MONEY_AMOUNT = 1_000_000
+
+
+def valid_date(form, field):
+    """Validate date strings before route logic runs.
+
+    Solace accepts ISO dates and common Australian date formats. Keeping this
+    validator at the form layer prevents bad dates from becoming 500 errors.
+    """
+    if field.data in [None, ""]:
+        return
+    try:
+        parse_date(field.data)
+    except ValueError:
+        raise ValidationError("Enter a valid date, e.g. DD/MM/YYYY or YYYY-MM-DD.")
+
+
+def valid_web_url(form, field):
+    """Validate optional webhook URLs for future notification providers."""
+    if not field.data:
+        return
+    if not re.match(r"^https?://", field.data.strip(), flags=re.IGNORECASE):
+        raise ValidationError("Enter a valid URL starting with http:// or https://.")
 
 
 class LoginForm(FlaskForm):
@@ -15,9 +43,9 @@ class LoginForm(FlaskForm):
 class SettingsForm(FlaskForm):
     household_name = StringField("Household name", validators=[DataRequired(), Length(max=120)])
     budget_year = IntegerField("Budget year", validators=[DataRequired(), NumberRange(min=2020, max=2100)])
-    first_payday = StringField("First payday", validators=[DataRequired()], description="YYYY-MM-DD or DD/MM/YYYY")
-    pay_frequency = SelectField("Pay frequency", choices=[("fortnightly", "Fortnightly")])
-    default_buffer_amount = FloatField("Default buffer amount", validators=[Optional(), NumberRange(min=0)])
+    first_payday = StringField("First payday", validators=[DataRequired(), valid_date], description="YYYY-MM-DD or DD/MM/YYYY")
+    pay_frequency = SelectField("Pay frequency", choices=[("fortnightly", "Fortnightly")], description="Solace currently supports fortnightly household pay cycles.")
+    default_buffer_amount = FloatField("Default buffer amount", validators=[Optional(), NumberRange(min=0, max=MAX_MONEY_AMOUNT)])
     currency_symbol = StringField("Currency symbol", validators=[DataRequired(), Length(max=5)])
     theme = SelectField("Theme", choices=[("Light", "Light"), ("Dark", "Dark"), ("Auto", "Auto")])
     show_help_tips = BooleanField("Show help tips", default=True, description="Shows small ? icons beside optional guidance. Important warnings are still shown even when this is off.")
@@ -34,7 +62,7 @@ class CategoryForm(FlaskForm):
 
 class RecurringBillForm(FlaskForm):
     name = StringField("Bill name", validators=[DataRequired(), Length(max=120)])
-    amount = FloatField("Amount", validators=[DataRequired(), NumberRange(min=0.01)])
+    amount = FloatField("Amount", validators=[DataRequired(), NumberRange(min=0.01, max=MAX_MONEY_AMOUNT)])
     frequency = SelectField(
         "Frequency",
         choices=[
@@ -48,15 +76,15 @@ class RecurringBillForm(FlaskForm):
     )
     first_due_date = StringField(
         "First due date",
-        validators=[DataRequired()],
+        validators=[DataRequired(), valid_date],
         description="The first date this bill comes out. Solace uses this to work out the day and repeat pattern."
     )
-    # Legacy/generated fields. These are still stored in the database, but the UI now uses
-    # first_due_date so users do not need to understand due day vs start date.
+    # Legacy/generated fields are retained for model compatibility but are not
+    # rendered in the normal UI. apply_bill_form derives them from first_due_date.
     due_day = IntegerField("Generated due day", validators=[Optional(), NumberRange(min=1, max=31)])
     due_month = IntegerField("Generated due month", validators=[Optional(), NumberRange(min=1, max=12)])
-    start_date = StringField("Generated start date", validators=[Optional()])
-    end_date = StringField("Stop after date", validators=[Optional()], description="Optional. Leave blank unless the bill should stop after a date.")
+    start_date = StringField("Generated start date", validators=[Optional(), valid_date])
+    end_date = StringField("Stop after date", validators=[Optional(), valid_date], description="Optional. Leave blank unless the bill should stop after a date.")
     category_id = SelectField("Category", coerce=int, validators=[Optional()])
     new_category_name = StringField("New category", validators=[Optional(), Length(max=80)], description="Optional. Creates a new bill category and uses it for this bill.")
     active = BooleanField("Active", default=True)
@@ -69,9 +97,9 @@ class RecurringBillForm(FlaskForm):
 
 class PlannedPurchaseForm(FlaskForm):
     name = StringField("Purchase name", validators=[DataRequired(), Length(max=120)])
-    target_amount = FloatField("Target amount", validators=[DataRequired(), NumberRange(min=0.01)])
-    amount_saved = FloatField("Amount already saved", validators=[Optional(), NumberRange(min=0)], default=0)
-    target_date = StringField("Target date", validators=[DataRequired()], description="YYYY-MM-DD or DD/MM/YYYY")
+    target_amount = FloatField("Target amount", validators=[DataRequired(), NumberRange(min=0.01, max=MAX_MONEY_AMOUNT)])
+    amount_saved = FloatField("Amount already saved", validators=[Optional(), NumberRange(min=0, max=MAX_MONEY_AMOUNT)], default=0)
+    target_date = StringField("Target date", validators=[DataRequired(), valid_date], description="YYYY-MM-DD or DD/MM/YYYY")
     category_id = SelectField("Category", coerce=int, validators=[Optional()])
     new_category_name = StringField("New category", validators=[Optional(), Length(max=80)], description="Optional. Creates a new planned purchase category and uses it for this purchase.")
     purchase_scope = SelectField(
@@ -88,8 +116,8 @@ class PlannedPurchaseForm(FlaskForm):
 
 
 class AccountBalanceForm(FlaskForm):
-    snapshot_date = StringField("Balance date", validators=[DataRequired()], description="YYYY-MM-DD or DD/MM/YYYY")
-    balance = FloatField("Bills/set-aside account balance", validators=[DataRequired()])
+    snapshot_date = StringField("Balance date", validators=[DataRequired(), valid_date], description="YYYY-MM-DD or DD/MM/YYYY")
+    balance = FloatField("Bills/set-aside account balance", validators=[DataRequired(), NumberRange(min=0, max=MAX_MONEY_AMOUNT)])
     notes = TextAreaField("Notes", validators=[Optional()])
     submit = SubmitField("Save balance")
 
@@ -97,11 +125,11 @@ class AccountBalanceForm(FlaskForm):
 class IncomeSourceForm(FlaskForm):
     owner_name = StringField("Person", validators=[DataRequired(), Length(max=120)], description="Who receives this pay, e.g. Nick or partner.")
     name = StringField("Income source name", validators=[DataRequired(), Length(max=120)])
-    amount = FloatField("Amount", validators=[DataRequired(), NumberRange(min=0.01)])
-    frequency = SelectField("Frequency", choices=[("Fortnightly", "Fortnightly")])
+    amount = FloatField("Amount", validators=[DataRequired(), NumberRange(min=0.01, max=MAX_MONEY_AMOUNT)])
+    frequency = SelectField("Frequency", choices=[("Fortnightly", "Fortnightly")], description="Solace currently supports fortnightly income schedules.")
     next_pay_date = StringField(
         "Known pay date",
-        validators=[DataRequired()],
+        validators=[DataRequired(), valid_date],
         description="Enter any known payday for this income. It can be in the past; Solace uses it as the fortnightly schedule anchor."
     )
     active = BooleanField("Active", default=True)
@@ -118,7 +146,7 @@ class BucketForm(FlaskForm):
         description="Choose one. Percentage uses each person's own income. Fixed splits the household amount by income share."
     )
     percentage = FloatField("Percentage of income", validators=[Optional(), NumberRange(min=0, max=100)], default=0)
-    fixed_amount = FloatField("Fixed household amount", validators=[Optional(), NumberRange(min=0)])
+    fixed_amount = FloatField("Fixed household amount", validators=[Optional(), NumberRange(min=0, max=MAX_MONEY_AMOUNT)])
     rounding_increment = SelectField(
         "Round transfer to nearest",
         coerce=int,
@@ -151,7 +179,7 @@ class NotificationSettingsForm(FlaskForm):
     dashboard_reminders = BooleanField("Show dashboard reminders", default=True)
     due_soon_days = IntegerField("Due-soon warning days", validators=[DataRequired(), NumberRange(min=1, max=60)], default=3)
     provider = SelectField("Notification provider", choices=[("None", "None"), ("ntfy", "ntfy"), ("webhook", "Gotify / generic webhook")])
-    webhook_url = StringField("Webhook / ntfy URL", validators=[Optional(), Length(max=500)])
+    webhook_url = StringField("Webhook / ntfy URL", validators=[Optional(), Length(max=500), valid_web_url])
     token = StringField("Token", validators=[Optional(), Length(max=255)])
     notes = TextAreaField("Notes", validators=[Optional()])
     submit = SubmitField("Save notification settings")

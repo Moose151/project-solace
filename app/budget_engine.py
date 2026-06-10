@@ -44,7 +44,11 @@ def money(value):
 
 
 def occurrences_per_year(frequency):
-    """Return the annual multiplier used for average set-aside calculations."""
+    """Return the annual multiplier used for average set-aside calculations.
+
+    Unknown frequencies are treated as programming/data errors. Returning zero
+    would silently understate the household set-aside requirement.
+    """
     mapping = {
         "Weekly": 52,
         "Fortnightly": 26,
@@ -53,7 +57,9 @@ def occurrences_per_year(frequency):
         "Six-monthly": 2,
         "Yearly": 1,
     }
-    return mapping.get(frequency, 0)
+    if frequency not in mapping:
+        raise ValueError(f"Unknown bill frequency: {frequency}")
+    return mapping[frequency]
 
 
 def annual_cost(bill):
@@ -116,9 +122,16 @@ def generate_bill_dates(bill, year):
 
     elif bill.frequency in ["Weekly", "Fortnightly"]:
         interval_days = 7 if bill.frequency == "Weekly" else 14
-        current = start
-        while current < window_start:
+
+        # Fast-forward directly to the first occurrence in the generation
+        # window. This avoids stepping one interval at a time for bills that
+        # started years ago.
+        days_since_start = (window_start - start).days
+        steps = max(0, days_since_start // interval_days)
+        current = start + timedelta(days=steps * interval_days)
+        if current < window_start:
             current += timedelta(days=interval_days)
+
         while current <= window_end:
             due_dates.append(current)
             current += timedelta(days=interval_days)
@@ -321,6 +334,9 @@ def calculate_bucket_allocations(buckets, income_total, household_income_total=N
         remaining_before = money(income_total - allocated_total)
         capped = False
 
+        # Only the first enabled remainder bucket is allowed to cap itself to
+        # the remaining income. Later remainder flags are ignored defensively;
+        # the UI/startup cleanup also tries to enforce a single remainder bucket.
         cap_enabled = bool(getattr(bucket, "cap_to_remaining", False)) and not remainder_cap_seen
         if cap_enabled:
             remainder_cap_seen = True

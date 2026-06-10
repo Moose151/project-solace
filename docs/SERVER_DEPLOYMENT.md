@@ -75,8 +75,19 @@ PY
 
 ```bash
 mkdir -p instance
+sudo chown -R 1000:1000 instance
 docker compose up -d --build
 ```
+
+If the container cannot open the SQLite database after a hardening update, check instance-folder ownership:
+
+```bash
+cd /opt/docker/project-solace/app
+sudo chown -R 1000:1000 instance
+docker compose up -d --build
+```
+
+The container runs as non-root UID 1000. The `chown` command makes sure the SQLite instance folder is writable by the app user inside the container.
 
 Then open:
 

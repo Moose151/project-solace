@@ -1,2 +1,2 @@
-APP_VERSION = "v24.0"
-APP_RELEASE_NAME = "System Info + Stability Polish"
+APP_VERSION = "0.24.1-beta"
+APP_RELEASE_NAME = "Stability Hardening"

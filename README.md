@@ -1,10 +1,20 @@
 # Project Solace
 
-Current build: **v24.0 — System Info + Stability Polish**
+Current build: **Beta 0.24.1 — Stability Hardening**
 
 Project Solace is a self-hosted household set-aside planner for recurring bills, planned purchases, income sources, and bucket-based payday transfers.
 
 It is intentionally not a full transaction-tracking budget app. Its main job is to answer: **how much should each person transfer into each bucket this pay cycle?**
+
+## Versioning
+
+Project Solace is still in beta. Earlier ZIP/build labels such as v20-v24 were rapid internal build numbers, not production release versions. From this hardening build onward, the app uses beta-style versioning:
+
+```text
+0.x.y-beta
+```
+
+The current build is **0.24.1-beta**. Treat this as a beta stability checkpoint before heavier stress testing.
 
 ## Current feature set
 
