@@ -1402,6 +1402,74 @@ html[data-bs-theme="dark"] .modern-calendar .calendar-day.today {
   }
 }
 
+/* Occurrence action cards (mobile dashboard bill lists) */
+.occ-mobile-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.occ-card {
+  border: 1px solid var(--hs-border);
+  border-radius: var(--hs-radius-sm);
+  background: var(--hs-surface);
+  padding: 0.8rem 0.9rem;
+}
+
+.occ-card--danger {
+  border-color: rgba(184, 92, 80, .35);
+  background: var(--hs-danger-soft);
+}
+
+html[data-bs-theme="dark"] .occ-card {
+  background: var(--hs-surface-raised);
+}
+
+html[data-bs-theme="dark"] .occ-card--danger {
+  background: rgba(209, 132, 122, .08);
+}
+
+/* AJAX floating toast notification */
+.solace-toast {
+  position: fixed;
+  bottom: calc(5.5rem + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%) translateY(0.75rem);
+  z-index: 9999;
+  padding: 0.55rem 1.2rem;
+  border-radius: 999px;
+  font-size: 0.88rem;
+  font-weight: 650;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  white-space: nowrap;
+  background: var(--hs-success);
+  color: #fff;
+  box-shadow: 0 0.5rem 1.5rem rgba(0,0,0,.18);
+}
+
+.solace-toast--neutral {
+  background: var(--hs-muted-strong);
+}
+
+.solace-toast--visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+@media (min-width: 992px) {
+  .solace-toast {
+    left: auto;
+    right: 1.5rem;
+    bottom: 1.5rem;
+    transform: translateY(0.75rem);
+  }
+  .solace-toast--visible {
+    transform: translateY(0);
+  }
+}
+
 /* 0.24.2-beta mobile usability fixes ------------------------------------ */
 .app-navbar {
   z-index: 1060;

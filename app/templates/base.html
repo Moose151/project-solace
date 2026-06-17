@@ -170,6 +170,102 @@
     });
   })();
 
+  // Auto-dismiss flash alerts after 5 seconds
+  (function solaceAlertDismiss() {
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('.toast-stack .alert').forEach(function(alert) {
+        setTimeout(function() {
+          alert.style.transition = 'opacity 0.4s ease, transform 0.35s ease';
+          alert.style.opacity = '0';
+          alert.style.transform = 'translateY(-0.4rem)';
+          setTimeout(function() { if (alert.parentNode) alert.remove(); }, 420);
+        }, 5000);
+      });
+    });
+  })();
+
+  // AJAX Paid / Skip on dashboard — no full-page reload
+  (function solaceOccurrenceAjax() {
+    var toastEl = null;
+
+    function getToast() {
+      if (!toastEl) {
+        toastEl = document.createElement('div');
+        toastEl.className = 'solace-toast';
+        toastEl.setAttribute('aria-live', 'polite');
+        document.body.appendChild(toastEl);
+      }
+      return toastEl;
+    }
+
+    function showToast(msg, type) {
+      var el = getToast();
+      el.textContent = msg;
+      el.className = 'solace-toast solace-toast--' + (type || 'success') + ' solace-toast--visible';
+      clearTimeout(el._t);
+      el._t = setTimeout(function() { el.classList.remove('solace-toast--visible'); }, 3000);
+    }
+
+    function updateTotal(container) {
+      var totalEl = container.querySelector('[data-occ-total]');
+      if (!totalEl) return;
+      var seen = {}, total = 0;
+      container.querySelectorAll('[data-occ-row]').forEach(function(r) {
+        var id = r.dataset.occId || r;
+        if (!seen[id]) { seen[id] = true; total += parseFloat(r.dataset.occAmount || 0); }
+      });
+      totalEl.textContent = (totalEl.dataset.currency || '$') + total.toFixed(2);
+    }
+
+    function checkEmpty(container) {
+      var rows = container.querySelectorAll('[data-occ-row]');
+      if (rows.length === 0) {
+        var emptyEl = container.querySelector('[data-occ-empty]');
+        if (emptyEl) emptyEl.style.display = '';
+        container.querySelectorAll('.occ-mobile-list, .table-responsive').forEach(function(el) { el.style.display = 'none'; });
+        var totalEl = container.querySelector('[data-occ-total]');
+        if (totalEl) totalEl.textContent = (totalEl.dataset.currency || '$') + '0.00';
+      } else {
+        updateTotal(container);
+      }
+    }
+
+    document.addEventListener('submit', function(e) {
+      var form = e.target;
+      var action = form.dataset.ajaxOccurrence;
+      if (!action) return;
+      e.preventDefault();
+
+      var row = form.closest('[data-occ-row]');
+      var container = form.closest('[data-occ-container]');
+      var occId = row ? row.dataset.occId : null;
+
+      form.querySelectorAll('button').forEach(function(b) { b.disabled = true; });
+
+      fetch(form.action, { method: 'POST', body: new FormData(form), redirect: 'follow' })
+        .then(function(resp) {
+          if (!resp.ok) { form.submit(); return; }
+          showToast(action === 'paid' ? 'Marked as paid' : 'Bill skipped', action === 'paid' ? 'success' : 'neutral');
+          var targets = occId && container
+            ? Array.from(container.querySelectorAll('[data-occ-id="' + occId + '"]'))
+            : (row ? [row] : []);
+          targets.forEach(function(el) {
+            el.style.transition = 'opacity 0.18s ease, transform 0.18s ease';
+            el.style.opacity = '0';
+            el.style.transform = 'translateX(0.5rem)';
+            setTimeout(function() {
+              el.remove();
+              if (container) checkEmpty(container);
+            }, 200);
+          });
+        })
+        .catch(function() {
+          form.querySelectorAll('button').forEach(function(b) { b.disabled = false; });
+          form.submit();
+        });
+    });
+  })();
+
 </script>
 </body>
 </html>

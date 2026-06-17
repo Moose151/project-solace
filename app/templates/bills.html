@@ -52,7 +52,7 @@
           <a class="mobile-list-title" href="{{ url_for('main.bill_detail', bill_id=bill.id) }}">{{ bill.name }}</a>
           <div class="mobile-list-meta">
             {% if bill.category %}{{ bill.category.name }} · {% else %}Uncategorised · {% endif %}
-            {{ bill.frequency }} · First due {{ bill.start_date }}
+            {{ bill.frequency }} · First due {{ bill.start_date|format_date }}
           </div>
         </div>
         <div class="mobile-list-amount">{{ settings.currency_symbol }}{{ '%.2f'|format(bill.amount) }}</div>
@@ -98,7 +98,7 @@
             <td class="fw-semibold"><a href="{{ url_for('main.bill_detail', bill_id=bill.id) }}">{{ bill.name }}</a></td>
             <td>{% if bill.category %}<span class="badge badge-soft">{{ bill.category.name }}</span>{% else %}<span class="text-muted">Uncategorised</span>{% endif %}</td>
             <td>{{ bill.frequency }}</td>
-            <td>{{ bill.start_date }}</td>
+            <td>{{ bill.start_date|format_date }}</td>
             <td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(bill.amount) }}</td>
             <td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(annual_cost(bill)) }}</td>
             <td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(fortnightly_bill_amount(bill)) }}</td>

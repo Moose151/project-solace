@@ -4,7 +4,9 @@
 
 This file is intended to let another AI assistant or developer continue work on Project Solace without needing the full prior conversation. It captures the project purpose, technical stack, workflow, deployment details, current features, decisions already made, known issues, and future backlog.
 
-Project Solace is still considered **beta software**. The current project line uses beta-style versioning such as `0.24.1-beta` and `0.24.2-beta`. Older labels such as v1–v24 were internal rapid-build labels used during development and should not be treated as stable production release numbers.
+Project Solace is still considered **beta software**. The current project line uses beta-style versioning such as `0.25.0-beta`. Older labels such as v1–v24 were internal rapid-build labels used during development and should not be treated as stable production release numbers.
+
+**Important:** After every working session, commit all changes and push to GitHub before closing. This keeps the server deployment, local copies, and Git history in sync. Use the workflow in section 9.
 
 ---
 
@@ -23,8 +25,8 @@ Project Solace is **not** intended to be a full transaction tracker or complete 
 The intended scope is:
 
 - Recurring bills
-- Income sources
-- Pay-cycle planning
+- Income sources (individual and shared)
+- Pay-cycle planning (fortnightly and weekly)
 - Bucket transfers
 - Shared and individual planned purchases
 - Calendar/list visibility of upcoming bills and income
@@ -47,9 +49,9 @@ The household has two income sources, with both people paid fortnightly in the s
 - Nick income: `$3090.00`, fortnightly
 - Combined household income: `$5648.00`
 
-The app should support multiple income sources and assign each to a person.
+The app supports multiple income sources and assigns each to a person. It also supports **shared income** sources (e.g. rental income, Centrelink payments) that are not attributed to any one person.
 
-Important concept: the income date stored for each income source should be treated as a **known pay date anchor**, not a manually updated “next pay date”.
+Important concept: the income date stored for each income source should be treated as a **known pay date anchor**, not a manually updated "next pay date".
 
 The user specifically wanted the old wording changed from:
 
@@ -59,7 +61,7 @@ to:
 
 - `Known pay date`
 
-because the date can be in the past and is used as a recurrence anchor.
+because the date can be in the past and is used as a recurrence anchor. Note: the database column is still named `next_pay_date` — do not rename it without a migration.
 
 The app calculates current and future pay cycles from active income sources. `Settings.first_payday` should only be used as a fallback if no active income source exists.
 
@@ -105,7 +107,7 @@ Nick:
 The app should preserve the distinction between:
 
 - Shared household set-aside
-- Each person’s individual spending
+- Each person's individual spending
 - Shared planned purchases
 - Individual planned purchases
 
@@ -119,6 +121,8 @@ The app supports current and next cycle views.
 
 Known pay dates are recurrence anchors. They can be in the past and should not need fortnightly manual updates.
 
+Pay frequency (weekly or fortnightly) is stored in `Settings.pay_frequency`. The `get_cycle_window()` function reads this setting; do not bypass it.
+
 Pay-cycle example from testing:
 
 - Current cycle: `03 Jun 2026 – 16 Jun 2026`
@@ -126,7 +130,7 @@ Pay-cycle example from testing:
 
 Important bug already fixed:
 
-The app previously showed bills due on `17 Jun 2026` under “due before next pay” for the `03 Jun – 16 Jun` cycle. This was wrong because those bills belonged to the next cycle. The fix was to include bills up to `cycle_end`, not `next_payday`.
+The app previously showed bills due on `17 Jun 2026` under "due before next pay" for the `03 Jun – 16 Jun` cycle. This was wrong because those bills belonged to the next cycle. The fix was to include bills up to `cycle_end`, not `next_payday`.
 
 There is a setting for whether bills due on payday belong to the new cycle or previous cycle. Current preferred behaviour is:
 
@@ -451,15 +455,19 @@ Confirm the running version matches the expected beta version.
 
 Dashboard shows household summary information and configurable widgets.
 
-Dashboard may include:
+Dashboard widgets include:
 
 - Current cycle summary
 - Bills due/unpaid this cycle
 - Bucket summaries
-- Individual contribution summaries
+- Individual contribution summaries (per person)
 - Quick links
 - Planned purchase summaries
-- Calendar/overview widgets
+- Payday checklist preview
+- Overdue bills
+- Bills bucket health check
+- Account balance snapshot
+- Recurring totals (monthly/annual)
 
 Dashboard layout is modular and configurable via:
 
@@ -467,14 +475,16 @@ Dashboard layout is modular and configurable via:
 Manage → Dashboard Layout
 ```
 
+Widget properties (enabled, sort order, size: small/medium/wide) are stored in the database and survive restarts.
+
 ### Recurring bills
 
 Bills support:
 
 - Name
 - Amount
-- Frequency
-- First due date
+- Frequency (Weekly, Fortnightly, Monthly, Quarterly, Six-monthly, Yearly)
+- First due date (used to derive due_day, due_month, start_date internally)
 - Optional stop-after date
 - Category
 - Account paid from
@@ -482,7 +492,7 @@ Bills support:
 - Autopay flag
 - Include in set-aside flag
 - Notes
-- Occurrence handling
+- Occurrence handling (upcoming/paid/skipped)
 
 The bill form must use:
 
@@ -498,16 +508,7 @@ Due month
 Start date
 ```
 
-Frequencies include:
-
-- Weekly
-- Fortnightly
-- Monthly
-- Quarterly
-- Six-monthly
-- Yearly
-
-Bill occurrences support statuses such as:
+Bill occurrences support statuses:
 
 - Upcoming
 - Paid
@@ -515,25 +516,39 @@ Bill occurrences support statuses such as:
 
 Bill detail page exists and should be preserved.
 
+Occurrence regeneration is safe: paid occurrences are preserved, only unpaid future occurrences are replaced when a bill is edited.
+
 ### Income sources
 
 Income sources support:
 
-- Person
+- Person (`owner_name`)
 - Source name
 - Amount
-- Frequency
-- Known pay date
+- Frequency (Weekly or Fortnightly)
+- Known pay date (stored as `next_pay_date` in the database — do not rename without a migration)
 - Active flag
 - Notes
+- Income scope: `Individual` or `Shared`
+- Allocation mode (for shared income): `standard`, `lump`, or `custom`
+- Lump bucket (for `lump` mode)
+- Custom allocation rows via `SharedIncomeAllocation` (for `custom` mode)
 
-The correct label is:
+The correct UI label is:
 
 ```text
 Known pay date
 ```
 
-Do not call this “Next pay date” in the UI.
+Do not call this "Next pay date" in the UI.
+
+**Shared income** (e.g. rental income) works as follows:
+
+- `standard` mode: the amount flows into the household income pool and the normal bucket percentage/fixed math applies to it.
+- `lump` mode: the full amount goes to one nominated bucket.
+- `custom` mode: the amount is split across nominated buckets with custom percentages; one row may be flagged as remainder.
+
+Shared income does not appear in any person's individual contribution breakdown.
 
 ### Pay Cycle
 
@@ -543,7 +558,7 @@ Pay Cycle supports:
 - Next cycle
 - Closeout navigation
 
-This was added because the user specifically wanted to preview the next cycle’s bills and transfers.
+This was added because the user specifically wanted to preview the next cycle's bills and transfers.
 
 ### Payday Checklist
 
@@ -551,9 +566,11 @@ Payday Checklist supports:
 
 - Current cycle
 - Next cycle
-- Transfer/checklist items
-- Hiding automatic transfers
+- Transfer/checklist items generated per person per bucket
+- Hiding automatic transfers (stored in `PaydayChecklistPreference`)
 - Restoring hidden transfers
+- Confirm income arrived
+- Review due bills
 
 The page previously had rendering and recursion bugs. Be careful changing `get_cycle_window()` and the checklist logic.
 
@@ -581,6 +598,8 @@ Buckets support:
 - Fixed amount
 - Remainder/cap-to-remaining behaviour
 - Per-person and combined contribution breakdowns
+- Rounding increment (e.g. round to nearest $10)
+- Bucket type (Bills, Savings, Spending, Planned purchases, Other)
 
 Only one bucket may use the remainder/cap behaviour.
 
@@ -590,33 +609,19 @@ This is a locked-in user requirement.
 
 Planned purchases support:
 
-- Shared planned purchases
-- Individual planned purchases
+- Shared planned purchases (household-level, both incomes contribute)
+- Individual planned purchases (assigned to one person, from their individual spending)
 
-Important fields added:
+Important fields:
 
 ```text
-purchase_scope
-owner_name
+purchase_scope  — "Shared" or "Individual"
+owner_name      — set when scope is Individual
 ```
 
-Shared purchases:
+Shared purchases count toward shared planned-purchase set-aside. Individual purchases do not increase the shared household bucket.
 
-- Household-level
-- Both incomes contribute toward them
-- Count toward shared planned-purchase set-aside
-
-Individual purchases:
-
-- Assigned to one person
-- Come from that person’s individual spending
-- Should not increase household shared planned-purchase bucket requirements
-
-Planned Purchases page separates:
-
-- Shared planned purchases
-- Individual planned purchases by person
-- All planned purchases
+Planned Purchases page separates shared, individual (per person), and all purchases with totals.
 
 ### Calendar
 
@@ -630,46 +635,28 @@ Calendar supports:
 - Bill and income events
 - Paid/skipped/upcoming visual distinctions
 - Bill events linking to bill detail
-
-0.24.2-beta added:
-
 - Date pickers
-- Mobile agenda-style view
-- Better mobile usability
 
 ### Privacy mode
 
-A Privacy button exists in the navbar.
-
-It blurs money values on screen, similar to Actual Budget’s privacy mode.
-
-Behaviour:
-
-- Stored in browser local storage
-- Persists per browser
-- Should blur visible money values across the page
+A Privacy button exists in the navbar. It blurs money values on screen (similar to Actual Budget's privacy mode). Behaviour is stored in browser local storage per browser.
 
 ### Backup / restore / import / export
 
-Built:
-
 - Backup/restore page
-- Import preview
-- Confirm/cancel import flow
+- Import preview with confirm/cancel flow
 - XLSX/ZIP exports
 - Upload size limits
 - Temp file cleanup
-- Import preview stored in instance/temp storage rather than Flask cookie session
+- Import preview stored in `instance/temp` (not Flask session)
 
 ### Health Check
 
-Health Check page exists under Manage.
-
-Checks include:
+Health Check page exists under Manage. Checks include:
 
 - Active income sources
 - Active bills
-- Uncategorized bills
+- Uncategorised bills
 - Multiple remainder buckets
 - Percentage bucket totals
 - Overdue unpaid bills
@@ -679,26 +666,16 @@ Checks include:
 
 ### System Info
 
-System Info exists under Manage.
+System Info exists under Manage. Shows:
 
-It should show:
-
-- App version
-- Release name
-- Git commit if available
+- App version / release name / git commit
 - Python version
 - Debug mode
-- Database URI/path
-- Database exists
-- Database size
+- Database URI/path/exists/size
 - Current pay cycle
 - Next payday
-- Active bills
-- Active income sources
-- Active buckets
-- Active planned purchases
-- Unpaid bill occurrences
-- Overdue unpaid occurrences
+- Active bills / income sources / buckets / planned purchases
+- Unpaid and overdue bill occurrences
 
 This is important for troubleshooting server update issues.
 
@@ -770,7 +747,7 @@ The app was developed rapidly through internal labels v1–v24 and is now consid
 Current beta line:
 
 ```text
-0.24.x-beta
+0.25.0-beta
 ```
 
 Important milestones:
@@ -802,13 +779,14 @@ Important milestones:
 - v22.1: Payday rendering fix
 - v23: Privacy filter and planned purchase scope
 - v24: System Info and diagnostics polish
-- 0.24.1-beta: Stability Hardening
-- 0.24.2-beta: Mobile Usability Patch
+- 0.24.1-beta: Stability Hardening (race-safe seeding, WAL mode, busy_timeout, non-root Docker user)
+- 0.24.2-beta: Mobile Usability Patch (agenda calendar, date pickers, numeric keypads)
+- 0.25.0-beta: Shared Income & Weekly Cycles
 
-Latest created build:
+Latest build:
 
 ```text
-Project Solace 0.24.2-beta — Mobile Usability Patch
+Project Solace 0.25.0-beta — Shared Income & Weekly Cycles
 ```
 
 ---
@@ -817,7 +795,7 @@ Project Solace 0.24.2-beta — Mobile Usability Patch
 
 Recent completed additions include:
 
-- Beta versioning instead of “v25”
+- Beta versioning instead of "v25"
 - System Info page
 - Health Check improvements
 - Privacy money blur
@@ -839,29 +817,40 @@ Recent completed additions include:
 - Faster weekly/fortnightly bill generation
 - pytest smoke/calculation tests
 - Dependabot config
+- **Shared income sources** with `standard`, `lump`, and `custom` allocation modes
+- **`SharedIncomeAllocation` model** for custom per-bucket percentage splits on shared income
+- **Weekly pay cycle support** via `Settings.pay_frequency` and `get_cycle_window()`
+- **Income form UI** for configuring shared income allocation modes and lump/custom bucket targets
 
 ---
 
-## 15. Features yet to implement
+## 15. Features to add
 
-These are backlog items. Do not add major features until the current beta is stress tested.
+These are backlog and suggested features. Items marked **[suggested]** are ideas not yet on the formal backlog.
+
+### Priority: complete before major new work
+
+- Verify `0.25.0-beta` on server and take a known-good backup.
+- Create GitHub release tags (`beta-0.24.1`, `beta-0.24.2`, `beta-0.25.0`) for stable snapshots.
+- Expand the test suite (see below).
+
+---
 
 ### Calendar improvements
 
 Future calendar work:
 
-- Better mobile agenda layout
-- Today card
-- This week section
-- Upcoming bills section
+- Better mobile agenda layout with grouping by "Today / Tomorrow / This week"
+- Today card surfaced at top of agenda view
+- Upcoming bills section (next 7 days)
 - Upcoming income section
-- Expandable day cards
+- Expandable day cards on mobile
 - Calendar legend
-- Paydays highlighted separately from ordinary income
-- Bills due today highlighted
+- Paydays highlighted separately from ordinary income events
+- Bills due today highlighted or badged
 - Overdue unpaid bills surfaced above the calendar
 
-### Calendar action sheet
+### Calendar action sheet (mobile)
 
 On mobile, tapping a bill event should eventually open an action sheet with:
 
@@ -876,6 +865,83 @@ For income events:
 - View pay cycle
 - View payday checklist
 
+### Notification implementation
+
+The `NotificationSetting` model and scaffold already exist. The settings page exposes ntfy/Gotify/webhook configuration. Implementation needed:
+
+- Wire up an actual notification send on payday (bill due reminders)
+- In-app notification badge/banner
+- ntfy push notification (self-hosting-friendly; preferred over email)
+- Gotify webhook support
+- Keep simple — do not add email/SMTP unless explicitly requested
+
+The `due_soon_days` field on `NotificationSetting` already stores the reminder lead time.
+
+### Cycle history view
+
+A read-only page listing all closed `CycleCloseout` records with:
+
+- Cycle date range
+- Total bills expected, paid, skipped, unpaid
+- Total income for that cycle
+- Notes recorded at closeout
+- Link to a cycle detail view
+
+This would give a simple historical audit trail without needing full transaction tracking.
+
+### Bill amount change tracking [suggested]
+
+When a bill's amount is edited, record the old and new amounts in `AuditLog`. Surface a "history" tab on the bill detail page showing when the bill changed amount. Useful for tracking insurance, energy, and subscription price creep.
+
+### Annual / financial year summary [suggested]
+
+A summary page showing:
+
+- Total bills by category across the full budget year
+- Actual paid vs expected (from `BillOccurrence` records)
+- Income expected vs received (approximate, from income source records)
+- Australian financial year view (1 Jul – 30 Jun) as an option alongside calendar year
+
+This would not be a full ledger — just a read-only aggregate view of what the app already knows.
+
+### Savings goals progress widget [suggested]
+
+A dedicated dashboard widget showing planned purchase progress bars more prominently:
+
+- Progress bar per purchase (saved / target)
+- Fortnightly set-aside required
+- Weeks/pay-cycles remaining
+- Highlight fully funded or overdue targets
+
+### Bill search and quick-filter [suggested]
+
+On the bills list page (especially mobile):
+
+- A search/filter input that narrows the bill list by name in real time (client-side JS)
+- Combined with existing category filter
+- Useful when the bill list grows long
+
+### Planned purchase "mark fully funded" shortcut [suggested]
+
+Currently a purchase must be marked Purchased manually. Add a UI affordance (badge or button) when `amount_saved >= target_amount` to prompt "Mark as purchased?" directly from the purchases list without opening the edit form.
+
+### Income variance / payslip notes [suggested]
+
+On the payday checklist, allow recording an actual income figure that differs from the expected amount:
+
+- "Em actual income this cycle: $2600 (overtime)"
+- Stored as a note on `PaydayChecklistItem` or a new `IncomeVariance` record
+- Would not change budget calculations — purely informational
+- Surfaces on cycle closeout
+
+### Quick-add bill from calendar day [suggested]
+
+On the calendar, clicking "+" on a day pre-fills the first due date of the bill form with that day. Small UX improvement, no schema change needed.
+
+### Per-category budget envelopes [suggested]
+
+Extend `Category` with an optional fortnightly budget amount. The bill category overview page would then show actual vs budgeted per category, highlighting over/under. This keeps scope tight (bills only, no transaction import needed).
+
 ### More tests
 
 Expand tests for:
@@ -884,6 +950,7 @@ Expand tests for:
 - Monthly short-month behaviour
 - Bills due on payday setting
 - Multiple income-source pay cycle handling
+- Shared income `standard` / `lump` / `custom` allocation
 - Shared planned purchases
 - Individual planned purchases
 - Bucket remainder/cap behaviour
@@ -891,98 +958,39 @@ Expand tests for:
 - Import preview safety
 - Health Check outputs
 
-### Release workflow
+---
 
-Create GitHub release tags for stable beta snapshots.
-
-Suggested tags:
-
-```text
-beta-0.24.1
-beta-0.24.2
-```
+## 16. Technical debt and longer-term work
 
 ### Migration system
 
-Eventually replace or supplement lightweight migrations with Flask-Migrate/Alembic.
+Replace or supplement lightweight migrations with Flask-Migrate/Alembic before many more schema changes. `apply_lightweight_migrations()` has grown and should eventually be split into schema, data, and seeding sections.
 
-Do this before many more schema changes.
+### Date and money schema
 
-### Date and money schema migration
-
-Long-term:
-
-- Move date strings to `db.Date` / `db.DateTime`
+- Move date strings (`String(10)`) to `db.Date` / `db.DateTime`
 - Move money floats to `db.Numeric(10, 2)` or Decimal-backed handling
 
-Do not do this casually. It requires a migration plan and backup testing.
+Do not do this casually. Requires a migration plan and backup testing.
 
-### Dashboard refactor
+### Dashboard route complexity
 
-Eventually split dashboard route into helper functions:
+The dashboard route does a lot of work inline. Future split into helper functions:
 
 - `get_dashboard_bill_data()`
 - `get_dashboard_income_data()`
 - `get_dashboard_bucket_data()`
 - `get_dashboard_checklist_data()`
 
-This is maintainability work, not urgent unless dashboard bugs/performance issues appear.
-
-### Notifications
-
-Notification settings scaffold exists, but notifications are not a major active workflow.
-
-Possible future choices:
-
-- In-app notifications
-- ntfy/Gotify
-- Email/SMTP
-
-Preferred direction: keep simple and self-hosting-friendly.
-
-### HomeStack UI extraction
-
-Eventually move reusable UI styles into a shared HomeStack UI file or pattern that can be used by:
-
-- Project Solace
-- Project Meridian
-- Home server dashboard
-
----
-
-## 16. Known issues and technical debt
-
-### Date storage as strings
-
-Many date fields are currently stored as `String(10)`.
-
-This works if ISO format is consistent, but `db.Date` would be cleaner long term.
-
-Do not change during stress testing unless necessary.
-
-### Money storage as floats
-
-Money fields are currently floats.
-
-This is acceptable for household planning with rounding helpers but not ideal.
-
-Long-term use Decimal/Numeric.
-
-### Lightweight migrations getting large
-
-`apply_lightweight_migrations()` has grown and should eventually be split into:
-
-- Schema migrations
-- Data migrations
-- Seeding/default data
-
-### Dashboard route complexity
-
-The dashboard route does a lot of work. Leave it for now unless it becomes unstable.
+Not urgent unless dashboard bugs or performance issues appear.
 
 ### Notification token storage
 
-Notification webhook/token fields are stored in plaintext. Acceptable for trusted LAN use for now but document before expanding notifications.
+Notification webhook/token fields are stored in plaintext. Acceptable for trusted LAN use for now. Document before expanding notifications to external services.
+
+### HomeStack UI extraction
+
+Eventually move reusable UI styles into a shared HomeStack UI file or pattern usable by Project Solace, Project Meridian, and the home server dashboard.
 
 ### Git workflow complexity
 
@@ -990,7 +998,23 @@ The user works across multiple laptops and server copies. Always confirm Git sta
 
 ---
 
-## 17. Security notes
+## 17. Known issues
+
+### Date storage as strings
+
+Many date fields are currently stored as `String(10)`. Works when ISO format is consistent, but `db.Date` would be cleaner long term. Do not change during stress testing unless necessary.
+
+### Money storage as floats
+
+Money fields are currently floats. Acceptable for household planning with rounding helpers, but not ideal for precision. Long-term: use Decimal/Numeric.
+
+### `apply_lightweight_migrations()` growth
+
+This function has grown and should eventually be split into schema migrations, data migrations, and seeding/default data.
+
+---
+
+## 18. Security notes
 
 Do not commit:
 
@@ -1022,7 +1046,7 @@ SOLACE_ADMIN_PASSWORD
 
 ---
 
-## 18. Project Meridian relationship
+## 19. Project Meridian relationship
 
 Project Meridian is a separate household gamified task/reward Flask app.
 
@@ -1032,11 +1056,11 @@ Repository:
 https://github.com/Moose151/project-meridian
 ```
 
-The user wants Meridian to eventually share Solace’s HomeStack UI design.
+The user wants Meridian to eventually share Solace's HomeStack UI design.
 
 Important Meridian-specific rule:
 
-Do not hardcode visible “points” text in Meridian. Use the dynamic household settings label:
+Do not hardcode visible "points" text in Meridian. Use the dynamic household settings label:
 
 ```text
 household_settings.points_label
@@ -1063,71 +1087,3 @@ Do not confuse Solace and Meridian folders:
 ~/Documents/project-meridian
 ```
 
----
-
-## 19. Assistant/user working preferences
-
-The user prefers:
-
-- Direct practical help
-- Exact commands
-- Step-by-step guidance
-- Code examples with comments
-- Warnings when something is risky
-- No over-engineering
-- Stability over novelty
-- Mobile usability
-- Clear version/deployment checks
-
-When helping with this project:
-
-- Ask for `git status` before resolving Git problems.
-- Avoid telling the user to overwrite files unless a backup exists.
-- Do not propose full transaction tracking unless explicitly requested.
-- Do not relitigate already-decided scope.
-- Treat small mobile/UI fixes as acceptable during beta.
-- Treat new financial logic/schema changes as risky and requiring tests/backups.
-- Always preserve `.env`, `.venv`, `.git`, and `instance/` when replacing files from ZIPs.
-
----
-
-## 20. Current recommended next steps
-
-Immediate next phase:
-
-1. Commit and deploy `0.24.2-beta` if not already done.
-2. Verify `/system-info` on the server.
-3. Create a known-good backup.
-4. Freeze major features.
-5. Stress test with real household data.
-6. Log bugs/QoL issues.
-7. Only patch stability/mobile usability bugs during beta.
-
-Suggested stress-test checklist:
-
-```text
-Dashboard loads
-System Info loads
-Health Check loads
-Privacy toggle works
-Bills add/edit/delete works
-Bill occurrence paid/skipped works
-Calendar desktop view works
-Calendar mobile agenda works
-Current day highlight works
-Income source known pay date works
-Pay Cycle current works
-Pay Cycle next works
-Payday Checklist current works
-Payday Checklist next works
-Pay Split works
-Shared planned purchase works
-Individual planned purchase works
-Backup download works
-Restore/import size limits work
-Mobile nav menu scrolls above bottom nav
-Money fields open numeric keypad on mobile
-Date fields open date picker on mobile
-```
-
-Do not begin large refactors until after this stress testing period.

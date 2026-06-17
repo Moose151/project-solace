@@ -15,14 +15,14 @@
   <div class="col-md-3"><div class="card metric"><div class="card-body"><div class="metric-label">Amount</div><div class="h3">{{ settings.currency_symbol }}{{ '%.2f'|format(bill.amount) }}</div></div></div></div>
   <div class="col-md-3"><div class="card metric"><div class="card-body"><div class="metric-label">Per fortnight</div><div class="h3">{{ settings.currency_symbol }}{{ '%.2f'|format(per_fortnight) }}</div></div></div></div>
   <div class="col-md-3"><div class="card metric"><div class="card-body"><div class="metric-label">Annual</div><div class="h3">{{ settings.currency_symbol }}{{ '%.2f'|format(annual) }}</div></div></div></div>
-  <div class="col-md-3"><div class="card metric"><div class="card-body"><div class="metric-label">Next due</div><div class="h5">{% if next_occurrence %}{{ next_occurrence.due_date }}{% else %}None generated{% endif %}</div></div></div></div>
+  <div class="col-md-3"><div class="card metric"><div class="card-body"><div class="metric-label">Next due</div><div class="h5">{% if next_occurrence %}{{ next_occurrence.due_date|format_date }}{% else %}None generated{% endif %}</div></div></div></div>
 </div>
 
 <div class="row g-4">
   <div class="col-lg-6"><div class="card h-100"><div class="card-body">
     <h2 class="h5">Bill details</h2>
-    <div class="mini-stat"><span>First due date</span><strong>{{ bill.start_date }}</strong></div>
-    <div class="mini-stat"><span>Stop after date</span><strong>{{ bill.end_date or '—' }}</strong></div>
+    <div class="mini-stat"><span>First due date</span><strong>{{ bill.start_date|format_date }}</strong></div>
+    <div class="mini-stat"><span>Stop after date</span><strong>{{ bill.end_date|format_date if bill.end_date else '—' }}</strong></div>
     <div class="mini-stat"><span>Autopay</span><strong>{{ 'Yes' if bill.autopay else 'No' }}</strong></div>
     <div class="mini-stat"><span>Include in set-aside</span><strong>{{ 'Yes' if bill.include_in_set_aside else 'No' }}</strong></div>
     <div class="mini-stat"><span>Account paid from</span><strong>{{ bill.account_name or '—' }}</strong></div>
@@ -30,12 +30,12 @@
   </div></div></div>
   <div class="col-lg-6"><div class="card h-100"><div class="card-body">
     <h2 class="h5">Upcoming occurrences</h2>
-    {% if upcoming %}<div class="table-responsive"><table class="table align-middle"><thead><tr><th>Date</th><th>Status</th><th class="text-end">Amount</th></tr></thead><tbody>{% for item in upcoming %}<tr><td>{{ item.due_date }}</td><td>{{ item.status }}</td><td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="text-muted mb-0">No upcoming occurrences generated.</p>{% endif %}
+    {% if upcoming %}<div class="table-responsive"><table class="table align-middle"><thead><tr><th>Date</th><th>Status</th><th class="text-end">Amount</th></tr></thead><tbody>{% for item in upcoming %}<tr><td>{{ item.due_date|format_date }}</td><td>{{ item.status }}</td><td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="text-muted mb-0">No upcoming occurrences generated.</p>{% endif %}
   </div></div></div>
 </div>
 
 <div class="card mt-4"><div class="card-body">
   <h2 class="h5">Recent history</h2>
-  {% if history %}<div class="table-responsive"><table class="table align-middle"><thead><tr><th>Date</th><th>Status</th><th>Paid date</th><th class="text-end">Amount</th></tr></thead><tbody>{% for item in history %}<tr><td>{{ item.due_date }}</td><td>{{ item.status }}</td><td>{{ item.paid_date or '—' }}</td><td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="text-muted mb-0">No past occurrences yet.</p>{% endif %}
+  {% if history %}<div class="table-responsive"><table class="table align-middle"><thead><tr><th>Date</th><th>Status</th><th>Paid date</th><th class="text-end">Amount</th></tr></thead><tbody>{% for item in history %}<tr><td>{{ item.due_date|format_date }}</td><td>{{ item.status }}</td><td>{{ item.paid_date|format_date if item.paid_date else '—' }}</td><td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="text-muted mb-0">No past occurrences yet.</p>{% endif %}
 </div></div>
 {% endblock %}

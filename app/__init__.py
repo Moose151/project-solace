@@ -82,6 +82,17 @@ def create_app():
     from .routes import main
     app.register_blueprint(main)
 
+    def _format_date(value):
+        if not value:
+            return value
+        from datetime import datetime
+        try:
+            return datetime.strptime(str(value).strip()[:10], "%Y-%m-%d").strftime("%d %b %Y")
+        except ValueError:
+            return value
+
+    app.jinja_env.filters["format_date"] = _format_date
+
     with app.app_context():
         with startup_database_lock(app):
             configure_sqlite()

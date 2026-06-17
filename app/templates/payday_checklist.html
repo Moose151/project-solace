@@ -67,7 +67,7 @@
 {% endif %}{% endfor %}
 
 {% if cycle_unpaid %}
-<div class="card mt-4"><div class="card-body"><h2 class="h5">Unpaid bills this cycle</h2><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Date</th><th>Bill</th><th class="text-end">Amount</th></tr></thead><tbody>{% for item in cycle_unpaid %}<tr><td>{{ item.due_date }}</td><td>{% if item.bill %}<a href="{{ url_for('main.bill_detail', bill_id=item.bill.id) }}">{{ item.bill.name }}</a>{% else %}Bill{% endif %}</td><td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</td></tr>{% endfor %}</tbody></table></div></div></div>
+<div class="card mt-4"><div class="card-body"><h2 class="h5">Unpaid bills this cycle</h2><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Date</th><th>Bill</th><th class="text-end">Amount</th></tr></thead><tbody>{% for item in cycle_unpaid %}<tr><td>{{ item.due_date|format_date }}</td><td>{% if item.bill %}<a href="{{ url_for('main.bill_detail', bill_id=item.bill.id) }}">{{ item.bill.name }}</a>{% else %}Bill{% endif %}</td><td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</td></tr>{% endfor %}</tbody></table></div></div></div>
 {% endif %}
 
 {% if hidden_preferences %}
