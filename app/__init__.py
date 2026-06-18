@@ -184,6 +184,18 @@ def apply_lightweight_migrations():
     if not column_exists("cycle_closeout", "actual_income"):
         db.session.execute(text("ALTER TABLE cycle_closeout ADD COLUMN actual_income REAL"))
 
+    if not column_exists("user", "display_name"):
+        db.session.execute(text("ALTER TABLE user ADD COLUMN display_name VARCHAR(120)"))
+
+    if not column_exists("user", "avatar_emoji"):
+        db.session.execute(text("ALTER TABLE user ADD COLUMN avatar_emoji VARCHAR(10) DEFAULT '🏠'"))
+
+    # Back-fill display_name for any existing users who don't have one.
+    for u in User.query.filter(User.display_name.is_(None)).all():
+        u.display_name = u.username.replace("_", " ").title()
+    for u in User.query.filter(User.avatar_emoji.is_(None)).all():
+        u.avatar_emoji = "🏠"
+
     capped_buckets = Bucket.query.filter(Bucket.cap_to_remaining.is_(True)).order_by(Bucket.sort_order, Bucket.name).all()
     for bucket in capped_buckets[1:]:
         bucket.cap_to_remaining = False
@@ -247,16 +259,18 @@ def seed_default_data():
     password = os.environ.get("SOLACE_ADMIN_PASSWORD")
     if not password:
         warnings.warn(
-            "SOLACE_ADMIN_PASSWORD is not set. Using an insecure development fallback.",
+            "SOLACE_ADMIN_PASSWORD is not set. Using the default development PIN (1234).",
             RuntimeWarning,
             stacklevel=2,
         )
-        password = "admin"
+        password = "1234"
 
     if not User.query.filter_by(username=username).first():
         db.session.add(User(
             username=username,
             password_hash=generate_password_hash(password),
+            display_name="Admin",
+            avatar_emoji="🏠",
             role="admin",
             active=True,
         ))

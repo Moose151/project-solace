@@ -1,19 +1,78 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="row justify-content-center">
-  <div class="col-md-5">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h1 class="h4 mb-3">Log in</h1>
+<section class="row justify-content-center">
+  <div class="col-12 col-lg-8 col-xl-7">
+    <div class="card border-0 shadow-sm mt-3 mt-md-4">
+      <div class="card-body p-4 p-md-5">
+
+        <div class="text-center mb-4">
+          <div class="avatar-login-emoji dashboard-avatar mx-auto mb-3" style="font-size:2.5rem;width:64px;height:64px;display:flex;align-items:center;justify-content:center;border-radius:50%;">🏠</div>
+          <h1 class="h3 mb-1">{{ settings.household_name if settings else "Project Solace" }}</h1>
+          <p class="text-muted small mb-0">Select your avatar, then enter your PIN.</p>
+        </div>
+
         <form method="post">
           {{ form.hidden_tag() }}
-          <div class="mb-3">{{ form.username.label(class="form-label") }} {{ form.username(class="form-control") }}</div>
-          <div class="mb-3">{{ form.password.label(class="form-label") }} {{ form.password(class="form-control") }}</div>
-          {{ form.submit(class="btn btn-primary w-100") }}
+          {{ form.selected_user_id(id="selected_user_id") }}
+
+          {% if users %}
+          <div class="row g-3 mb-4">
+            {% for user in users %}
+            <div class="col-6 col-md-4 col-lg-3">
+              <button type="button" class="avatar-login-card w-100" data-user-id="{{ user.id }}">
+                <div class="avatar-login-emoji">{{ user.avatar_emoji or '🏠' }}</div>
+                <div class="avatar-login-name">{{ user.display_name or user.username }}</div>
+              </button>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="alert alert-warning">No active users found. Check your environment configuration.</div>
+          {% endif %}
+
+          <div class="mb-3">
+            <p class="text-muted small mb-1">Selected user</p>
+            <div id="selected-user-display" class="selected-user-box p-2 rounded">No user selected</div>
+          </div>
+
+          <div class="mb-4">
+            {{ form.password.label(class="form-label fw-semibold") }}
+            {{ form.password(class="form-control form-control-lg text-center", placeholder="Enter PIN", autocomplete="current-password") }}
+          </div>
+
+          {{ form.submit(class="btn btn-primary btn-lg w-100") }}
         </form>
-        <p class="text-muted small mt-3 mb-0">Default development login is admin/admin unless changed with environment variables.</p>
+        {% if config.DEBUG %}
+        <p class="text-muted small text-center mt-3 mb-0">Development mode — default PIN is <code>1234</code>.</p>
+        {% endif %}
+
       </div>
     </div>
   </div>
-</div>
+</section>
+
+<script>
+(function () {
+  var selectedInput = document.getElementById("selected_user_id");
+  var selectedDisplay = document.getElementById("selected-user-display");
+  var cards = document.querySelectorAll(".avatar-login-card");
+
+  cards.forEach(function (card) {
+    card.addEventListener("click", function () {
+      cards.forEach(function (c) { c.classList.remove("selected"); });
+      card.classList.add("selected");
+      selectedInput.value = card.dataset.userId;
+      var name = card.querySelector(".avatar-login-name");
+      selectedDisplay.textContent = name ? name.textContent.trim() : "Selected";
+      var pinField = document.querySelector("input[type=password]");
+      if (pinField) pinField.focus();
+    });
+  });
+
+  // If only one user, pre-select them.
+  if (cards.length === 1) {
+    cards[0].click();
+  }
+})();
+</script>
 {% endblock %}

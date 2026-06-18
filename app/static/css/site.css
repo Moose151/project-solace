@@ -1661,3 +1661,70 @@ html[data-bs-theme="dark"] .occ-card--danger {
   padding-bottom: .75rem;
 }
 .savings-goal-card:last-child { border-bottom: none; padding-bottom: 0; }
+
+/* ── Avatar / PIN login ──────────────────────────────────────────────── */
+.avatar-login-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .4rem;
+  padding: 1rem .5rem;
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid var(--hs-border);
+  border-radius: var(--hs-radius);
+  box-shadow: var(--hs-shadow-soft);
+  cursor: pointer;
+  transition: transform .12s ease, border-color .12s ease, box-shadow .12s ease;
+}
+.avatar-login-card:hover,
+.avatar-login-card:focus {
+  transform: translateY(-2px);
+  border-color: rgba(63, 111, 143, 0.52);
+  box-shadow: var(--hs-shadow);
+}
+.avatar-login-card.selected {
+  background: var(--hs-primary-soft);
+  border-color: rgba(63, 111, 143, 0.75);
+  box-shadow: 0 0 0 0.25rem rgba(63, 111, 143, 0.14);
+}
+.avatar-login-emoji {
+  font-size: 2rem;
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.9), transparent 42%),
+    linear-gradient(135deg, rgba(63, 111, 143, 0.12), rgba(201, 138, 61, 0.14));
+  border: 1px solid rgba(222, 212, 197, 0.94);
+}
+.avatar-login-name {
+  font-size: .85rem;
+  font-weight: 600;
+  color: var(--hs-text);
+  text-align: center;
+}
+.dashboard-avatar {
+  font-size: 2rem;
+  width: 56px;
+  height: 56px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.9), transparent 42%),
+    linear-gradient(135deg, rgba(63, 111, 143, 0.12), rgba(201, 138, 61, 0.14));
+  border: 1px solid rgba(222, 212, 197, 0.94);
+}
+.selected-user-box {
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid var(--hs-border);
+  border-radius: var(--hs-radius);
+  padding: .5rem .75rem;
+  font-weight: 600;
+  color: var(--hs-text);
+  min-height: 2.5rem;
+}

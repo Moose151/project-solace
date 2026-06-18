@@ -419,10 +419,18 @@ Confirm the running version matches the expected beta version.
 
 ### Authentication
 
-- Admin login exists.
-- Admin credentials are seeded from environment variables.
-- Missing `FLASK_SECRET_KEY` and `SOLACE_ADMIN_PASSWORD` should warn loudly after stability hardening.
+The login screen uses a **Meridian-style avatar/PIN login** (implemented June 2026):
+
+- Login page shows a card grid of active users; the user taps their avatar then enters their PIN.
+- `User` model has `display_name` (String 120) and `avatar_emoji` (String 10) fields in addition to `username` and `password_hash`.
+- `User.set_password(pin)` is a helper method that hashes the PIN via `werkzeug`.
+- `LoginForm` uses a `selected_user_id` hidden field (set by JS when a card is clicked) and a `password` PIN field. There is no username text field.
+- All users have full access — there is no admin vs. user role distinction in practice (the `role` column is still present but unused for access control).
+- Admin user is seeded from `SOLACE_ADMIN_USERNAME` / `SOLACE_ADMIN_PASSWORD` env vars. Missing `FLASK_SECRET_KEY` and `SOLACE_ADMIN_PASSWORD` warn loudly at startup.
 - Do not rely on `admin/admin` on the live server.
+- User management is at **Manage → Users** (`/users`). Any logged-in user can add, edit, or delete users (since all users are equal).
+- The existing admin user is back-filled with `display_name="Admin"` and `avatar_emoji="🏠"` on first boot after this migration.
+- Migrations for `user.display_name` and `user.avatar_emoji` are in `apply_lightweight_migrations()` in `__init__.py`.
 
 ### Dashboard
 
@@ -763,11 +771,12 @@ Important milestones:
 - 0.24.2-beta: Mobile Usability Patch (agenda calendar, date pickers, numeric keypads)
 - 0.25.0-beta: Shared Income & Weekly Cycles
 - 0.26.0-beta: 14-feature sprint (search, calendar improvements, ntfy, savings widget, annual summary, cycle history, category budgets, bill amount tracking, income variance)
+- 0.27.0-beta: Avatar/PIN login (Meridian-style user cards, per-user display name + emoji, user management page)
 
 Latest build:
 
 ```text
-Project Solace 0.26.0-beta — Feature Sprint
+Project Solace 0.27.0-beta — Avatar Login
 ```
 
 ---

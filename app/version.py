@@ -1,2 +1,2 @@
-APP_VERSION = "0.25.0-beta"
-APP_RELEASE_NAME = "Shared Income & Weekly Cycles"
+APP_VERSION = "0.27.0-beta"
+APP_RELEASE_NAME = "Avatar Login"

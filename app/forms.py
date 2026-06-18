@@ -3,7 +3,7 @@ import re
 from flask_wtf import FlaskForm
 from wtforms import (
     StringField, PasswordField, FloatField, IntegerField, SelectField,
-    BooleanField, TextAreaField, SubmitField
+    BooleanField, TextAreaField, SubmitField, HiddenField
 )
 from wtforms.validators import DataRequired, NumberRange, Optional, Length, ValidationError
 
@@ -39,9 +39,25 @@ def valid_web_url(form, field):
 
 
 class LoginForm(FlaskForm):
-    username = StringField("Username", validators=[DataRequired(), Length(max=80)])
-    password = PasswordField("Password", validators=[DataRequired()])
+    selected_user_id = HiddenField("Selected user")
+    password = PasswordField("PIN", validators=[DataRequired()])
     submit = SubmitField("Log in")
+
+
+class UserForm(FlaskForm):
+    display_name = StringField("Display name", validators=[DataRequired(), Length(max=120)])
+    avatar_emoji = StringField("Avatar emoji", validators=[DataRequired(), Length(max=10)], description="Pick an emoji for the login screen, e.g. 🏠 🐶 🌟")
+    pin = PasswordField("PIN", validators=[Optional(), Length(min=4, max=20)], description="Leave blank when editing to keep the current PIN.")
+    active = BooleanField("Active", default=True)
+    submit = SubmitField("Save")
+
+
+class UserProfileForm(FlaskForm):
+    display_name = StringField("Display name", validators=[DataRequired(), Length(max=120)])
+    avatar_emoji = StringField("Avatar emoji", validators=[DataRequired(), Length(max=10)], description="Pick an emoji for the login screen, e.g. 🏠 🐶 🌟")
+    current_pin = PasswordField("Current PIN", validators=[Optional()], description="Required if you want to set a new PIN.")
+    new_pin = PasswordField("New PIN", validators=[Optional(), Length(min=4, max=20)], description="Leave blank to keep your current PIN.")
+    submit = SubmitField("Save changes")
 
 
 class SettingsForm(FlaskForm):

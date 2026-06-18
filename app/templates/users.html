@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="mb-3">Users</h1>
+<div class="row g-4">
+  <div class="col-lg-4">
+    <form method="post" action="{{ url_for('main.add_user') }}" class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h5">Add user</h2>
+        {{ form.hidden_tag() }}
+        <div class="mb-3">{{ form.display_name.label(class="form-label") }} {{ form.display_name(class="form-control") }}</div>
+        <div class="mb-3">
+          {{ form.avatar_emoji.label(class="form-label") }}
+          {{ form.avatar_emoji(class="form-control") }}
+          <div class="form-text">{{ form.avatar_emoji.description }}</div>
+        </div>
+        <div class="mb-3">
+          {{ form.pin.label(class="form-label") }}
+          {{ form.pin(class="form-control") }}
+          <div class="form-text">Minimum 4 characters. Required when creating a new user.</div>
+        </div>
+        <div class="form-check mb-3">{{ form.active(class="form-check-input") }} {{ form.active.label(class="form-check-label") }}</div>
+        <button class="btn btn-primary">Add user</button>
+      </div>
+    </form>
+  </div>
+  <div class="col-lg-8">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        {% if users %}
+        <div class="row g-3 mb-3">
+          {% for user in users %}
+          <div class="col-sm-6 col-md-4">
+            <div class="card h-100 text-center {{ 'border-success' if user.active else 'border-secondary opacity-50' }}">
+              <div class="card-body py-3">
+                <div class="fs-2 mb-1">{{ user.avatar_emoji or '🏠' }}</div>
+                <div class="fw-semibold">{{ user.display_name or user.username }}</div>
+                <div class="text-muted small mb-2">@{{ user.username }}</div>
+                {% if not user.active %}<span class="badge text-bg-secondary mb-2">Inactive</span>{% endif %}
+                <div class="d-flex gap-2 justify-content-center">
+                  <a href="{{ url_for('main.edit_user', user_id=user.id) }}" class="btn btn-sm btn-outline-primary">Edit</a>
+                  {% if users|length > 1 %}
+                  <form method="post" action="{{ url_for('main.delete_user', user_id=user.id) }}" onsubmit="return confirm('Delete {{ user.display_name or user.username }}?')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-sm btn-outline-danger">Delete</button>
+                  </form>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted">No users found.</p>
+        {% endif %}
+        <p class="text-muted small mb-0">All users have full access. There are no restricted accounts.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -56,6 +56,7 @@
             <li><a class="dropdown-item" href="{{ url_for('main.backup_restore') }}">Backup & Restore</a></li>
             <li><a class="dropdown-item" href="{{ url_for('main.data_tools') }}">Import & Export</a></li>
             <li><a class="dropdown-item" href="{{ url_for('main.notifications') }}">Notifications</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('main.manage_users') }}">Users</a></li>
             <li><a class="dropdown-item" href="{{ url_for('main.audit_log') }}">Audit Log</a></li>
             <li><a class="dropdown-item" href="{{ url_for('main.health_check_page') }}">Health Check</a></li>
             <li><a class="dropdown-item" href="{{ url_for('main.system_info') }}">System Info</a></li>
@@ -66,6 +67,7 @@
         </li>
       </ul>
       <button class="btn btn-outline-light btn-sm me-2" type="button" id="privacyToggle" aria-pressed="false" title="Blur money amounts">Privacy</button>
+      <a class="navbar-text me-2 d-none d-md-inline text-white-50 small text-decoration-none" href="{{ url_for('main.account') }}" title="My account">{{ current_user.avatar_emoji or '' }} {{ current_user.display_name or current_user.username }}</a>
       <a class="btn btn-outline-light btn-sm" href="{{ url_for('main.logout') }}">Logout</a>
       {% endif %}
     </div>

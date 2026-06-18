@@ -10,12 +10,12 @@ from calendar import Calendar, month_name
 from datetime import date, datetime, timedelta
 from zipfile import ZipFile, ZIP_DEFLATED
 
-from flask import Blueprint, render_template, redirect, url_for, flash, request, Response, send_file, current_app
-from flask_login import login_user, logout_user, login_required
-from werkzeug.security import check_password_hash
+from flask import Blueprint, render_template, redirect, url_for, flash, request, Response, send_file, current_app, abort
+from flask_login import login_user, logout_user, login_required, current_user
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from .models import db, User, Settings, Category, RecurringBill, BillOccurrence, PlannedPurchase, AccountBalanceSnapshot, IncomeSource, SharedIncomeAllocation, Bucket, DashboardWidget, PaydayChecklistItem, PaydayChecklistPreference, AuditLog, NotificationSetting, CycleCloseout
-from .forms import LoginForm, SettingsForm, CategoryForm, RecurringBillForm, PlannedPurchaseForm, AccountBalanceForm, IncomeSourceForm, SharedIncomeAllocationForm, BucketForm, NotificationSettingsForm, CycleCloseoutForm
+from .forms import LoginForm, UserForm, UserProfileForm, SettingsForm, CategoryForm, RecurringBillForm, PlannedPurchaseForm, AccountBalanceForm, IncomeSourceForm, SharedIncomeAllocationForm, BucketForm, NotificationSettingsForm, CycleCloseoutForm
 from .version import APP_VERSION, APP_RELEASE_NAME
 from .budget_engine import (
     annual_cost, fortnightly_bill_amount, generate_bill_dates,
@@ -589,14 +589,119 @@ def health():
 
 @main.route("/login", methods=["GET", "POST"])
 def login():
+    if current_user.is_authenticated:
+        return redirect(url_for("main.dashboard"))
     form = LoginForm()
+    users = User.query.filter_by(active=True).order_by(User.display_name).all()
+    settings = get_settings()
     if form.validate_on_submit():
-        user = User.query.filter_by(username=form.username.data).first()
-        if user and check_password_hash(user.password_hash, form.password.data):
+        try:
+            selected_user_id = int(form.selected_user_id.data)
+        except (ValueError, TypeError):
+            flash("Please select a user first.", "danger")
+            return render_template("login.html", form=form, users=users, settings=settings)
+        user = db.session.get(User, selected_user_id)
+        if not user or not user.active:
+            flash("User not found.", "danger")
+            return render_template("login.html", form=form, users=users, settings=settings)
+        if check_password_hash(user.password_hash, form.password.data):
             login_user(user)
             return redirect(url_for("main.dashboard"))
-        flash("Invalid username or password.", "danger")
-    return render_template("login.html", form=form)
+        flash("Incorrect PIN. Please try again.", "danger")
+    return render_template("login.html", form=form, users=users, settings=settings)
+
+
+@main.route("/users")
+@login_required
+def manage_users():
+    all_users = User.query.order_by(User.display_name).all()
+    form = UserForm()
+    return render_template("users.html", users=all_users, form=form)
+
+
+@main.route("/users/add", methods=["POST"])
+@login_required
+def add_user():
+    form = UserForm()
+    if form.validate_on_submit():
+        if not form.pin.data:
+            flash("A PIN is required when creating a new user.", "danger")
+            return redirect(url_for("main.manage_users"))
+        base_username = form.display_name.data.strip().lower().replace(" ", "_")
+        username = base_username
+        counter = 1
+        while User.query.filter_by(username=username).first():
+            username = f"{base_username}_{counter}"
+            counter += 1
+        user = User(
+            username=username,
+            display_name=form.display_name.data.strip(),
+            avatar_emoji=form.avatar_emoji.data.strip() or "🏠",
+            active=form.active.data,
+            role="admin",
+        )
+        user.set_password(form.pin.data)
+        db.session.add(user)
+        db.session.commit()
+        flash(f"User '{user.display_name}' created.", "success")
+    return redirect(url_for("main.manage_users"))
+
+
+@main.route("/users/<int:user_id>/edit", methods=["GET", "POST"])
+@login_required
+def edit_user(user_id):
+    user = db.session.get(User, user_id)
+    if not user:
+        abort(404)
+    form = UserForm(obj=user)
+    if request.method == "GET":
+        form.pin.data = ""
+    if form.validate_on_submit():
+        user.display_name = form.display_name.data.strip()
+        user.avatar_emoji = form.avatar_emoji.data.strip() or "🏠"
+        user.active = form.active.data
+        if form.pin.data:
+            user.set_password(form.pin.data)
+        db.session.commit()
+        flash(f"User '{user.display_name}' updated.", "success")
+        return redirect(url_for("main.manage_users"))
+    return render_template("user_edit.html", user=user, form=form)
+
+
+@main.route("/users/<int:user_id>/delete", methods=["POST"])
+@login_required
+def delete_user(user_id):
+    user = db.session.get(User, user_id)
+    if not user:
+        abort(404)
+    if User.query.count() <= 1:
+        flash("Cannot delete the only user account.", "danger")
+        return redirect(url_for("main.manage_users"))
+    db.session.delete(user)
+    db.session.commit()
+    flash("User deleted.", "success")
+    return redirect(url_for("main.manage_users"))
+
+
+@main.route("/account", methods=["GET", "POST"])
+@login_required
+def account():
+    form = UserProfileForm(obj=current_user)
+    if request.method == "GET":
+        form.current_pin.data = ""
+        form.new_pin.data = ""
+    if form.validate_on_submit():
+        current_user.display_name = form.display_name.data.strip()
+        current_user.avatar_emoji = form.avatar_emoji.data.strip() or "🏠"
+        if form.new_pin.data:
+            if not form.current_pin.data or not check_password_hash(current_user.password_hash, form.current_pin.data):
+                flash("Current PIN is incorrect. PIN not changed.", "danger")
+                return render_template("account.html", form=form)
+            current_user.set_password(form.new_pin.data)
+        db.session.commit()
+        flash("Account updated.", "success")
+        return redirect(url_for("main.account"))
+    return render_template("account.html", form=form)
 
 
 @main.route("/logout")
