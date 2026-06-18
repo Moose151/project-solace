@@ -17,7 +17,7 @@
           </div>
           <div class="mb-3">
             {{ form.avatar_emoji.label(class="form-label") }}
-            {{ form.avatar_emoji(class="form-control", id="avatar_emoji_input") }}
+            {{ form.avatar_emoji(class="form-select", id="avatar_emoji_input") }}
             <div class="form-text">{{ form.avatar_emoji.description }}</div>
           </div>
           <hr class="my-3">
@@ -43,7 +43,7 @@
   var input = document.getElementById("avatar_emoji_input");
   var preview = document.getElementById("emoji-preview");
   if (input && preview) {
-    input.addEventListener("input", function () {
+    input.addEventListener("change", function () {
       preview.textContent = this.value || "🏠";
     });
   }
