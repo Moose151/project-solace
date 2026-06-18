@@ -37,6 +37,7 @@ class Category(db.Model):
     name = db.Column(db.String(80), nullable=False)
     category_type = db.Column(db.String(20), nullable=False, default="Both")  # Bill, Purchase, Both
     active = db.Column(db.Boolean, default=True)
+    fortnightly_budget = db.Column(db.Float, nullable=True)
 
 
 class RecurringBill(db.Model):
@@ -217,3 +218,4 @@ class CycleCloseout(db.Model):
     status = db.Column(db.String(20), nullable=False, default="Open")  # Open, Closed
     closed_at = db.Column(db.String(25), nullable=True)
     notes = db.Column(db.Text, nullable=True)
+    actual_income = db.Column(db.Float, nullable=True)

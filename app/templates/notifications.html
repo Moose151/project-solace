@@ -1,15 +1,28 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="page-header"><div><h1 class="mb-1">Notifications</h1><div class="page-kicker">Lightweight reminder settings. External delivery can be wired to ntfy/Gotify later.</div></div></div>
-<form method="post" class="card"><div class="card-body row g-3">
+<div class="page-header"><div><h1 class="mb-1">Notifications</h1><div class="page-kicker">Push notifications via ntfy or Gotify/Webhook for upcoming bills and payday reminders.</div></div></div>
+<form method="post" class="card mb-3"><div class="card-body row g-3">
   {{ form.hidden_tag() }}
   <div class="col-md-6"><div class="form-check">{{ form.dashboard_reminders(class="form-check-input") }} {{ form.dashboard_reminders.label(class="form-check-label") }}</div><div class="form-text">Shows reminder-style warnings inside Project Solace.</div></div>
-  <div class="col-md-6"><div class="form-check">{{ form.enabled(class="form-check-input") }} {{ form.enabled.label(class="form-check-label") }}</div><div class="form-text">Stores external notification settings for later ntfy/Gotify use.</div></div>
+  <div class="col-md-6"><div class="form-check">{{ form.enabled(class="form-check-input") }} {{ form.enabled.label(class="form-check-label") }}</div><div class="form-text">Send push notifications via the configured provider.</div></div>
   <div class="col-md-4">{{ form.due_soon_days.label(class="form-label") }} {{ form.due_soon_days(class="form-control") }}</div>
   <div class="col-md-4">{{ form.provider.label(class="form-label") }} {{ form.provider(class="form-select") }}</div>
-  <div class="col-md-8">{{ form.webhook_url.label(class="form-label") }} {{ form.webhook_url(class="form-control") }}</div>
-  <div class="col-md-4">{{ form.token.label(class="form-label") }} {{ form.token(class="form-control") }}</div>
+  <div class="col-md-8">{{ form.webhook_url.label(class="form-label") }} {{ form.webhook_url(class="form-control") }}<div class="form-text">For ntfy: <code>https://ntfy.sh/your-topic</code> or your self-hosted URL. For Gotify: your message endpoint URL.</div></div>
+  <div class="col-md-4">{{ form.token.label(class="form-label") }} {{ form.token(class="form-control") }}<div class="form-text">ntfy token or Gotify app token. Leave blank if not required.</div></div>
   <div class="col-12">{{ form.notes.label(class="form-label") }} {{ form.notes(class="form-control", rows="3") }}</div>
-  <div class="col-12"><button class="btn btn-primary">Save notification settings</button></div>
+  <div class="col-12 d-flex gap-2 align-items-center">
+    <button class="btn btn-primary">Save notification settings</button>
+  </div>
 </div></form>
+
+<div class="card">
+  <div class="card-body">
+    <h2 class="h5 mb-2">Test notification</h2>
+    <p class="text-muted small mb-3">Send a test message to verify your ntfy or Gotify setup. Save your settings above first.</p>
+    <form method="post" action="{{ url_for('main.test_notification') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-outline-primary">Send test notification</button>
+    </form>
+  </div>
+</div>
 {% endblock %}

@@ -1588,3 +1588,76 @@ html[data-bs-theme="dark"] .occ-card--danger {
     min-height: 40px;
   }
 }
+
+/* ── Calendar legend ─────────────────────────────────────────────────── */
+.calendar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem 1.25rem;
+  align-items: center;
+  font-size: .85rem;
+  color: var(--hs-muted);
+}
+.calendar-legend-item {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+}
+.legend-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.legend-swatch--bill   { background: var(--hs-primary-soft); border: 1.5px solid var(--hs-primary); }
+.legend-swatch--income { background: var(--hs-success-soft); border: 1.5px solid var(--hs-success); }
+.legend-swatch--paid   { background: #d4edda; border: 1.5px solid #5f8f6b; }
+.legend-swatch--skipped{ background: var(--hs-surface-muted); border: 1.5px solid var(--hs-border-strong); }
+
+/* ── Calendar quick-add link ─────────────────────────────────────────── */
+.calendar-quick-add-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--hs-primary-soft);
+  color: var(--hs-primary);
+  font-size: .75rem;
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none;
+  opacity: 0;
+  transition: opacity .15s ease;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.calendar-day:hover .calendar-quick-add-link { opacity: 1; }
+
+/* ── Mobile calendar section grouping ───────────────────────────────── */
+.mobile-calendar-section-header {
+  font-size: .75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--hs-muted);
+  padding: .75rem 0 .25rem;
+  border-bottom: 1px solid var(--hs-border);
+  margin-bottom: .5rem;
+}
+.mobile-calendar-section { margin-bottom: 1rem; }
+
+/* ── Purchases — funded card highlight ──────────────────────────────── */
+.purchase-card--funded {
+  border-color: var(--hs-success) !important;
+  background: var(--hs-success-soft);
+}
+
+/* ── Savings goals dashboard widget ─────────────────────────────────── */
+.savings-goal-card {
+  border-bottom: 1px solid var(--hs-border);
+  padding-bottom: .75rem;
+}
+.savings-goal-card:last-child { border-bottom: none; padding-bottom: 0; }

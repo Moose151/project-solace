@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
+  <div>
+    <h1 class="mb-1">Cycle History</h1>
+    <p class="text-muted mb-0">All pay cycles that have been tracked in Project Solace.</p>
+  </div>
+  <a href="{{ url_for('main.cycle_closeout') }}" class="btn btn-outline-primary">Open current cycle</a>
+</div>
+
+{% if rows %}
+<div class="card shadow-sm">
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>Cycle start</th>
+            <th>Cycle end</th>
+            <th>Status</th>
+            <th class="text-end">Bills paid</th>
+            <th class="text-end">Unpaid</th>
+            <th class="text-end">Skipped</th>
+            <th>Closed at</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for row in rows %}
+          {% set closeout = row.closeout %}
+          <tr>
+            <td>{{ row.cs.strftime('%d %b %Y') if row.cs else closeout.cycle_start }}</td>
+            <td>{{ row.ce.strftime('%d %b %Y') if row.ce else closeout.cycle_end }}</td>
+            <td><span class="badge text-bg-{{ 'success' if closeout.status == 'Closed' else 'warning' }}">{{ closeout.status }}</span></td>
+            <td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(row.paid_total) }}</td>
+            <td class="text-end">{% if row.unpaid_count %}<span class="text-danger">{{ row.unpaid_count }}</span>{% else %}0{% endif %}</td>
+            <td class="text-end">{{ row.skipped_count }}</td>
+            <td class="text-muted small">{{ closeout.closed_at[:10] if closeout.closed_at else '—' }}</td>
+            <td class="text-muted small">{{ closeout.notes or '—' }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="card shadow-sm">
+  <div class="card-body text-muted">No cycle closeout records yet. Close your first pay cycle to start tracking history.</div>
+</div>
+{% endif %}
+{% endblock %}

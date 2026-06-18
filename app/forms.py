@@ -61,6 +61,7 @@ class CategoryForm(FlaskForm):
     name = StringField("Category name", validators=[DataRequired(), Length(max=80)])
     category_type = SelectField("Category type", choices=[("Bill", "Bill"), ("Purchase", "Purchase"), ("Both", "Both")])
     active = BooleanField("Active", default=True)
+    fortnightly_budget = FloatField("Fortnightly budget (optional)", validators=[Optional(), NumberRange(min=0, max=MAX_MONEY_AMOUNT)], render_kw={**MONEY_INPUT_KWARGS, "placeholder": "e.g. 200.00"})
     submit = SubmitField("Save category")
 
 
@@ -226,5 +227,6 @@ class NotificationSettingsForm(FlaskForm):
 
 
 class CycleCloseoutForm(FlaskForm):
+    actual_income = FloatField("Actual income received", validators=[Optional(), NumberRange(min=0, max=MAX_MONEY_AMOUNT)], render_kw={**MONEY_INPUT_KWARGS, "placeholder": "Leave blank if same as expected"})
     notes = TextAreaField("Closeout notes", validators=[Optional()])
     submit = SubmitField("Close cycle")

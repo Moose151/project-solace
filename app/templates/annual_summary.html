@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
+  <div>
+    <h1 class="mb-1">Annual Summary</h1>
+    <p class="text-muted mb-0">Bill spending by category for {{ period_label }}.</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('main.annual_summary', year_type='calendar') }}" class="btn {{ 'btn-primary' if year_type == 'calendar' else 'btn-outline-primary' }} btn-sm">Calendar year</a>
+    <a href="{{ url_for('main.annual_summary', year_type='financial') }}" class="btn {{ 'btn-primary' if year_type == 'financial' else 'btn-outline-primary' }} btn-sm">Financial year (Jul–Jun)</a>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3"><div class="card metric"><div class="card-body"><div class="metric-label">Period</div><div class="h5 mb-0">{{ period_label }}</div><div class="text-muted small">{{ period_start.strftime('%d %b') }} – {{ period_end.strftime('%d %b %Y') }}</div></div></div></div>
+  <div class="col-6 col-lg-3"><div class="card metric"><div class="card-body"><div class="metric-label">Grand total</div><div class="metric-value">{{ settings.currency_symbol }}{{ '%.2f'|format(grand_total) }}</div></div></div></div>
+  <div class="col-6 col-lg-3"><div class="card metric"><div class="card-body"><div class="metric-label">Paid</div><div class="metric-value">{{ settings.currency_symbol }}{{ '%.2f'|format(grand_paid) }}</div></div></div></div>
+  <div class="col-6 col-lg-3"><div class="card metric"><div class="card-body"><div class="metric-label">Categories</div><div class="metric-value">{{ categories|length }}</div></div></div></div>
+</div>
+
+{% if categories %}
+<div class="card shadow-sm">
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th class="text-end">Total</th>
+            <th class="text-end">Paid</th>
+            <th class="text-end">Unpaid</th>
+            <th class="text-end">Skipped</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for cat in categories %}
+          <tr data-bs-toggle="collapse" data-bs-target="#cat-{{ loop.index }}" style="cursor:pointer">
+            <td class="fw-semibold">{{ cat.name }} <span class="text-muted small">({{ cat.bills|length }} bill{{ '' if cat.bills|length == 1 else 's' }})</span></td>
+            <td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(cat.total) }}</td>
+            <td class="text-end text-success">{{ settings.currency_symbol }}{{ '%.2f'|format(cat.paid) }}</td>
+            <td class="text-end {{ 'text-danger' if cat.unpaid > 0 else '' }}">{{ settings.currency_symbol }}{{ '%.2f'|format(cat.unpaid) }}</td>
+            <td class="text-end text-muted">{{ settings.currency_symbol }}{{ '%.2f'|format(cat.skipped) }}</td>
+          </tr>
+          <tr class="collapse" id="cat-{{ loop.index }}">
+            <td colspan="5" class="bg-light p-0">
+              <table class="table table-sm mb-0">
+                <tbody>
+                {% for bill_name, bill_total in cat.bills %}
+                  <tr>
+                    <td class="ps-4 text-muted">{{ bill_name }}</td>
+                    <td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(bill_total) }}</td>
+                    <td></td><td></td><td></td>
+                  </tr>
+                {% endfor %}
+                </tbody>
+              </table>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th>Total</th>
+            <th class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(grand_total) }}</th>
+            <th class="text-end text-success">{{ settings.currency_symbol }}{{ '%.2f'|format(grand_paid) }}</th>
+            <th></th><th></th>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <p class="text-muted small mt-2">Click a category row to see individual bill totals.</p>
+  </div>
+</div>
+{% else %}
+<div class="card shadow-sm">
+  <div class="card-body text-muted">No bill occurrence data for {{ period_label }}. Bills need to be generated for this period.</div>
+</div>
+{% endif %}
+{% endblock %}

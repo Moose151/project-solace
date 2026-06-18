@@ -58,4 +58,16 @@
   {% endif %}
   <div class="col-12 action-bar justify-content-start"><button class="btn btn-primary">Save</button> <a href="{{ url_for('main.bills') }}" class="btn btn-outline-secondary">Cancel</a></div>
 </div></form>
+{% if not edit_mode %}
+<script>
+(function() {
+  var params = new URLSearchParams(window.location.search);
+  var d = params.get('first_due_date');
+  if (d) {
+    var field = document.getElementById('first_due_date');
+    if (field && !field.value) field.value = d;
+  }
+})();
+</script>
+{% endif %}
 {% endblock %}

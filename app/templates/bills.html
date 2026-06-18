@@ -44,9 +44,13 @@
   </div>
 </div>
 
-<div class="mobile-card-list d-lg-none mb-3">
+<div class="mb-3">
+  <input type="search" id="bill-search" class="form-control" placeholder="Search bills by name…" autocomplete="off" aria-label="Search bills">
+</div>
+
+<div class="mobile-card-list d-lg-none mb-3" id="bill-mobile-list">
   {% for bill in bills %}
-    <article class="mobile-list-card">
+    <article class="mobile-list-card" data-bill-name="{{ bill.name|lower }}">
       <div class="mobile-list-card-main">
         <div>
           <a class="mobile-list-title" href="{{ url_for('main.bill_detail', bill_id=bill.id) }}">{{ bill.name }}</a>
@@ -94,7 +98,7 @@
         </thead>
         <tbody>
         {% for bill in bills %}
-          <tr>
+          <tr data-bill-name="{{ bill.name|lower }}">
             <td class="fw-semibold"><a href="{{ url_for('main.bill_detail', bill_id=bill.id) }}">{{ bill.name }}</a></td>
             <td>{% if bill.category %}<span class="badge badge-soft">{{ bill.category.name }}</span>{% else %}<span class="text-muted">Uncategorised</span>{% endif %}</td>
             <td>{{ bill.frequency }}</td>
@@ -117,4 +121,16 @@
     </div>
   </div>
 </div>
+<script>
+(function() {
+  var searchInput = document.getElementById('bill-search');
+  if (!searchInput) return;
+  searchInput.addEventListener('input', function() {
+    var q = this.value.trim().toLowerCase();
+    document.querySelectorAll('[data-bill-name]').forEach(function(el) {
+      el.style.display = (!q || el.dataset.billName.includes(q)) ? '' : 'none';
+    });
+  });
+})();
+</script>
 {% endblock %}

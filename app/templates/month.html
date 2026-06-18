@@ -31,28 +31,87 @@
   <div class="col-6 col-lg-3"><div class="card metric"><div class="card-body"><div class="metric-label">Income expected</div><div class="metric-value">{{ settings.currency_symbol }}{{ '%.2f'|format(income_total) }}</div></div></div></div>
 </div>
 
-{% if selected_view == 'calendar' %}
-<div class="mobile-calendar-agenda">
-  <div class="mobile-calendar-today-card">
-    <div class="small text-muted">Today</div>
-    <div class="fw-semibold">{{ today.strftime('%a %d/%m/%Y') }}</div>
-    <div class="small text-muted mt-1">Mobile uses agenda view so bills and income are easier to read and tap.</div>
+{# Feature 2: Overdue bills surfaced above the calendar #}
+{% if overdue_global %}
+<div class="card border-danger shadow-sm mb-3">
+  <div class="card-body">
+    <h2 class="h5 text-danger mb-3">Overdue unpaid bills</h2>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead><tr><th>Due date</th><th>Bill</th><th>Amount</th><th></th></tr></thead>
+        <tbody>
+        {% for item in overdue_global %}
+          <tr>
+            <td>{{ item.due_date|format_date }}</td>
+            <td><a href="{{ url_for('main.bill_detail', bill_id=item.bill.id) }}">{{ item.bill.name }}</a></td>
+            <td>{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</td>
+            <td class="text-end">
+              <div class="d-flex gap-1 justify-content-end">
+                <form method="post" action="{{ url_for('main.mark_occurrence_paid', occurrence_id=item.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="return_to" value="{{ request.full_path }}">
+                  <button class="btn btn-success btn-sm">Mark paid</button>
+                </form>
+                <form method="post" action="{{ url_for('main.skip_occurrence', occurrence_id=item.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="return_to" value="{{ request.full_path }}">
+                  <button class="btn btn-outline-secondary btn-sm">Skip</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
+</div>
+{% endif %}
 
+{% if selected_view == 'calendar' %}
+
+{# Feature 4: Calendar legend #}
+<div class="calendar-legend mb-3 d-none d-md-flex">
+  <span class="calendar-legend-item"><span class="legend-swatch legend-swatch--bill"></span>Bill</span>
+  <span class="calendar-legend-item"><span class="legend-swatch legend-swatch--income"></span>Income</span>
+  <span class="calendar-legend-item"><span class="legend-swatch legend-swatch--paid"></span>Paid</span>
+  <span class="calendar-legend-item"><span class="legend-swatch legend-swatch--skipped"></span>Skipped</span>
+</div>
+
+{# Mobile agenda — Feature 3: Today / This Week / Later grouping #}
+<div class="mobile-calendar-agenda">
   {% if month_events %}
-    {% set ns = namespace(last_date=None) %}
+    {% set ns = namespace(last_section=None, last_date=None, section_open=False, date_open=False) %}
     {% for event in month_events %}
+      {% if event.date == today %}{% set section = 'today' %}
+      {% elif event.date < today %}{% set section = 'past' %}
+      {% elif (event.date - today).days <= 6 %}{% set section = 'this_week' %}
+      {% else %}{% set section = 'later' %}{% endif %}
+
+      {% if section != ns.last_section %}
+        {% if ns.date_open %}</div>{% set ns.date_open = False %}{% endif %}
+        {% if ns.section_open %}</div>{% set ns.section_open = False %}{% endif %}
+        <div class="mobile-calendar-section-header">
+          {% if section == 'today' %}Today
+          {% elif section == 'this_week' %}This Week
+          {% elif section == 'past' %}Past
+          {% else %}Coming Up{% endif %}
+        </div>
+        <div class="mobile-calendar-section">{% set ns.section_open = True %}
+        {% set ns.last_section = section %}{% set ns.last_date = None %}
+      {% endif %}
+
       {% if event.date != ns.last_date %}
-        {% if ns.last_date is not none %}</div>{% endif %}
+        {% if ns.date_open %}</div>{% set ns.date_open = False %}{% endif %}
         <div class="mobile-calendar-date-group">
           <div class="mobile-calendar-date-header {{ 'today' if event.date == today else '' }}">
             <span>{{ event.date.strftime('%A %d/%m/%Y') }}</span>
             {% if event.date == today %}<span class="today-pill">Today</span>{% endif %}
           </div>
-        {% set ns.last_date = event.date %}
+        {% set ns.last_date = event.date %}{% set ns.date_open = True %}
       {% endif %}
 
-      <div class="mobile-calendar-event {{ 'income-event' if event.type == 'income' else 'bill-event' }}">
+      <div class="mobile-calendar-event {{ 'income-event' if event.type == 'income' else 'bill-event' }} {{ 'paid-event' if event.type == 'bill' and event.status == 'Paid' else '' }} {{ 'skipped-event' if event.type == 'bill' and event.status == 'Skipped' else '' }}">
         <div class="mobile-calendar-event-main">
           <div>
             <div class="mobile-calendar-event-title">
@@ -105,12 +164,14 @@
         {% endif %}
       </div>
     {% endfor %}
-    </div>
+    {% if ns.date_open %}</div>{% endif %}
+    {% if ns.section_open %}</div>{% endif %}
   {% else %}
     <div class="card shadow-sm"><div class="card-body text-muted">No bills or income generated for this month.</div></div>
   {% endif %}
 </div>
 
+{# Desktop calendar grid — Feature 7: quick-add + on each day cell #}
 <div class="card shadow-sm calendar-card modern-calendar calendar-desktop-grid">
   <div class="card-body">
     <div class="calendar-grid calendar-head mb-2">
@@ -123,6 +184,9 @@
             <div class="calendar-date-row">
               <span class="calendar-date">{{ day.date.day }}</span>
               {% if day.is_today %}<span class="today-pill">Today</span>{% endif %}
+              {% if day.in_month %}
+              <a class="calendar-quick-add-link" href="{{ url_for('main.new_bill', first_due_date=day.date.isoformat()) }}" title="Add bill on {{ day.date.strftime('%d %b') }}">+</a>
+              {% endif %}
             </div>
             <div class="calendar-events">
               {% for event in day.events %}

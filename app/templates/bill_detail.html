@@ -38,4 +38,15 @@
   <h2 class="h5">Recent history</h2>
   {% if history %}<div class="table-responsive"><table class="table align-middle"><thead><tr><th>Date</th><th>Status</th><th>Paid date</th><th class="text-end">Amount</th></tr></thead><tbody>{% for item in history %}<tr><td>{{ item.due_date|format_date }}</td><td>{{ item.status }}</td><td>{{ item.paid_date|format_date if item.paid_date else '—' }}</td><td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="text-muted mb-0">No past occurrences yet.</p>{% endif %}
 </div></div>
+
+{% if amount_history %}
+<div class="card mt-4"><div class="card-body">
+  <h2 class="h5">Amount change history</h2>
+  <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Date</th><th>Change</th></tr></thead><tbody>
+  {% for entry in amount_history %}
+    <tr><td>{{ entry.created_at[:10]|format_date }}</td><td>{{ entry.details }}</td></tr>
+  {% endfor %}
+  </tbody></table></div>
+</div></div>
+{% endif %}
 {% endblock %}

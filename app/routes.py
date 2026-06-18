@@ -702,6 +702,25 @@ def dashboard():
     show_setup = (not settings.setup_checklist_dismissed) and (not all(step["done"] for step in setup_steps))
     dashboard_widgets, enabled_widgets = get_dashboard_widgets()
 
+    savings_goal_rows = []
+    for p in purchases:
+        pf = money(planned_purchase_fortnightly_amount(p, settings.first_payday))
+        remaining = money(max(p.target_amount - p.amount_saved, 0))
+        progress = min((p.amount_saved / p.target_amount * 100) if p.target_amount else 0, 100)
+        fully_funded = p.amount_saved >= p.target_amount
+        weeks_remaining = None
+        if pf > 0 and not fully_funded:
+            weeks_remaining = max(round((remaining / pf) * 2), 0)
+        savings_goal_rows.append({
+            "purchase": p,
+            "per_fortnight": pf,
+            "remaining": remaining,
+            "progress": progress,
+            "fully_funded": fully_funded,
+            "weeks_remaining": weeks_remaining,
+            "scope_label": planned_purchase_scope_label(p),
+        })
+
     return render_template(
         "dashboard.html",
         bill_fortnightly_total=bill_fortnightly_total,
@@ -744,6 +763,7 @@ def dashboard():
         person_bucket_allocations=person_bucket_allocations,
         dashboard_widgets=dashboard_widgets,
         enabled_widgets=enabled_widgets,
+        savings_goal_rows=savings_goal_rows,
     )
 
 
@@ -891,6 +911,8 @@ def bill_category_overview():
     if include_set_aside_only:
         rows = [bill for bill in rows if bill.include_in_set_aside]
 
+    category_budgets = {c.name: c.fortnightly_budget for c in Category.query.all()}
+
     grouped = {}
     for bill in rows:
         category_name = bill.category.name if bill.category else "Uncategorised"
@@ -902,6 +924,7 @@ def bill_category_overview():
                 "fortnightly": 0,
                 "monthly": 0,
                 "yearly": 0,
+                "budget": category_budgets.get(category_name),
             }
         yearly = annual_cost(bill)
         grouped[category_name]["bill_count"] += 1
@@ -916,6 +939,10 @@ def bill_category_overview():
         row["fortnightly"] = money(row["fortnightly"])
         row["monthly"] = money(row["monthly"])
         row["yearly"] = money(row["yearly"])
+        if row["budget"] is not None:
+            row["budget_delta"] = money(row["budget"] - row["fortnightly"])
+        else:
+            row["budget_delta"] = None
         summary_rows.append(row)
 
     summary_rows = sorted(summary_rows, key=lambda row: row["yearly"], reverse=True)
@@ -968,10 +995,13 @@ def edit_bill(bill_id):
         form.first_due_date.data = bill.start_date
     if form.validate_on_submit():
         scope = request.form.get("occurrence_update_scope", "future_unpaid")
+        old_amount = bill.amount
         apply_bill_form(form, bill)
         new_category = get_or_create_category(form.new_category_name.data, "Bill")
         bill.category_id = new_category.id if new_category else (form.category_id.data or None)
         regenerate_bill_occurrences(bill, scope=scope)
+        if old_amount is not None and abs((old_amount or 0) - (bill.amount or 0)) > 0.001:
+            audit("amount_change", "RecurringBill", bill.name, f"Amount changed from {old_amount:.2f} to {bill.amount:.2f}")
         audit("edit_bill", "RecurringBill", bill.name, f"Occurrence scope: {scope}")
         db.session.commit()
         flash("Bill updated.", "success")
@@ -1005,6 +1035,11 @@ def bill_detail(bill_id):
         BillOccurrence.due_date < today_iso,
     ).order_by(BillOccurrence.due_date.desc()).limit(12).all()
     next_occurrence = upcoming[0] if upcoming else None
+    amount_history = AuditLog.query.filter(
+        AuditLog.action == "amount_change",
+        AuditLog.entity_type == "RecurringBill",
+        AuditLog.entity_name == bill.name,
+    ).order_by(AuditLog.created_at.desc()).limit(20).all()
     return render_template(
         "bill_detail.html",
         bill=bill,
@@ -1013,6 +1048,7 @@ def bill_detail(bill_id):
         next_occurrence=next_occurrence,
         annual=annual_cost(bill),
         per_fortnight=fortnightly_bill_amount(bill),
+        amount_history=amount_history,
     )
 
 
@@ -1054,6 +1090,7 @@ def cycle_closeout():
 
     if form.validate_on_submit():
         closeout.notes = form.notes.data
+        closeout.actual_income = form.actual_income.data
         closeout.status = "Closed"
         closeout.closed_at = datetime.now().isoformat(timespec="seconds")
         audit("close_cycle", "CycleCloseout", cycle_start.isoformat(), f"Closed pay cycle {cycle_start.isoformat()} to {cycle_end.isoformat()}")
@@ -1362,6 +1399,11 @@ def month_view(year, month):
     unpaid = money(total - paid)
     income_total = money(sum(event["amount"] for event in income_events))
 
+    overdue_global = BillOccurrence.query.filter(
+        BillOccurrence.due_date < today.isoformat(),
+        BillOccurrence.status == "Upcoming",
+    ).order_by(BillOccurrence.due_date).all()
+
     return render_template(
         "month.html",
         year=year,
@@ -1377,6 +1419,7 @@ def month_view(year, month):
         unpaid=unpaid,
         income_total=income_total,
         today=today,
+        overdue_global=overdue_global,
     )
 
 
@@ -1925,6 +1968,156 @@ def notifications():
         flash("Notification settings saved.", "success")
         return redirect(url_for("main.notifications"))
     return render_template("notifications.html", form=form)
+
+
+@main.route("/notifications/test", methods=["POST"])
+@login_required
+def test_notification():
+    import urllib.request as _urllib_request
+    import json as _json
+    settings_row = NotificationSetting.query.first()
+    if not settings_row or not settings_row.enabled:
+        flash("Notifications are not enabled. Enable them and save first.", "warning")
+        return redirect(url_for("main.notifications"))
+    if settings_row.provider == "ntfy":
+        url = (settings_row.webhook_url or "").strip()
+        if not url:
+            flash("No ntfy webhook URL configured.", "danger")
+            return redirect(url_for("main.notifications"))
+        try:
+            req = _urllib_request.Request(url, data=b"Project Solace: test notification", method="POST")
+            req.add_header("Title", "Test Notification")
+            req.add_header("Tags", "bell")
+            req.add_header("Content-Type", "text/plain")
+            if settings_row.token:
+                req.add_header("Authorization", f"Bearer {settings_row.token}")
+            with _urllib_request.urlopen(req, timeout=8) as resp:
+                if resp.status < 300:
+                    flash("Test notification sent via ntfy.", "success")
+                else:
+                    flash(f"ntfy returned HTTP {resp.status}.", "danger")
+        except Exception as exc:
+            flash(f"ntfy error: {exc}", "danger")
+    elif settings_row.provider == "Gotify/Webhook":
+        url = (settings_row.webhook_url or "").strip()
+        if not url:
+            flash("No webhook URL configured.", "danger")
+            return redirect(url_for("main.notifications"))
+        try:
+            payload = _json.dumps({"title": "Test Notification", "message": "Project Solace: test notification", "priority": 5}).encode()
+            req = _urllib_request.Request(url, data=payload, method="POST")
+            req.add_header("Content-Type", "application/json")
+            if settings_row.token:
+                req.add_header("X-Gotify-Key", settings_row.token)
+            with _urllib_request.urlopen(req, timeout=8) as resp:
+                if resp.status < 300:
+                    flash("Test notification sent via webhook.", "success")
+                else:
+                    flash(f"Webhook returned HTTP {resp.status}.", "danger")
+        except Exception as exc:
+            flash(f"Webhook error: {exc}", "danger")
+    else:
+        flash("Select ntfy or Gotify/Webhook as provider first.", "warning")
+    return redirect(url_for("main.notifications"))
+
+
+@main.route("/cycle-history")
+@login_required
+def cycle_history():
+    settings = get_settings()
+    closeouts = CycleCloseout.query.order_by(CycleCloseout.cycle_start.desc()).all()
+    rows = []
+    for closeout in closeouts:
+        try:
+            cs = date.fromisoformat(closeout.cycle_start)
+            ce = date.fromisoformat(closeout.cycle_end)
+        except (ValueError, TypeError):
+            cs = ce = None
+        paid_total = 0
+        unpaid_count = 0
+        skipped_count = 0
+        if cs and ce:
+            occs = BillOccurrence.query.filter(
+                BillOccurrence.due_date >= closeout.cycle_start,
+                BillOccurrence.due_date <= closeout.cycle_end,
+            ).all()
+            paid_total = money(sum(o.amount for o in occs if o.status == "Paid"))
+            unpaid_count = sum(1 for o in occs if o.status == "Upcoming")
+            skipped_count = sum(1 for o in occs if o.status == "Skipped")
+        rows.append({
+            "closeout": closeout,
+            "cs": cs,
+            "ce": ce,
+            "paid_total": paid_total,
+            "unpaid_count": unpaid_count,
+            "skipped_count": skipped_count,
+        })
+    return render_template("cycle_history.html", settings=settings, rows=rows)
+
+
+@main.route("/annual-summary")
+@login_required
+def annual_summary():
+    settings = get_settings()
+    today = date.today()
+    year_type = request.args.get("year_type", "calendar")
+    if year_type == "financial":
+        fy_year = today.year if today.month >= 7 else today.year - 1
+        period_start = date(fy_year, 7, 1)
+        period_end = date(fy_year + 1, 6, 30)
+        period_label = f"FY {fy_year}/{str(fy_year + 1)[-2:]}"
+    else:
+        period_start = date(today.year, 1, 1)
+        period_end = date(today.year, 12, 31)
+        period_label = str(today.year)
+
+    occurrences = BillOccurrence.query.filter(
+        BillOccurrence.due_date >= period_start.isoformat(),
+        BillOccurrence.due_date <= period_end.isoformat(),
+    ).all()
+
+    category_totals = {}
+    for occ in occurrences:
+        cat_name = occ.bill.category.name if occ.bill and occ.bill.category else "Uncategorised"
+        if cat_name not in category_totals:
+            category_totals[cat_name] = {"total": 0, "paid": 0, "unpaid": 0, "skipped": 0, "bills": {}}
+        category_totals[cat_name]["total"] += occ.amount
+        if occ.status == "Paid":
+            category_totals[cat_name]["paid"] += occ.amount
+        elif occ.status == "Skipped":
+            category_totals[cat_name]["skipped"] += occ.amount
+        else:
+            category_totals[cat_name]["unpaid"] += occ.amount
+        bill_name = occ.bill.name if occ.bill else "Unknown"
+        category_totals[cat_name]["bills"][bill_name] = category_totals[cat_name]["bills"].get(bill_name, 0) + occ.amount
+
+    categories = sorted([
+        {
+            "name": name,
+            "total": money(data["total"]),
+            "paid": money(data["paid"]),
+            "unpaid": money(data["unpaid"]),
+            "skipped": money(data["skipped"]),
+            "bills": sorted([(k, money(v)) for k, v in data["bills"].items()], key=lambda x: -x[1]),
+        }
+        for name, data in category_totals.items()
+    ], key=lambda x: -x["total"])
+
+    grand_total = money(sum(c["total"] for c in categories))
+    grand_paid = money(sum(c["paid"] for c in categories))
+
+    return render_template(
+        "annual_summary.html",
+        settings=settings,
+        categories=categories,
+        grand_total=grand_total,
+        grand_paid=grand_paid,
+        period_label=period_label,
+        period_start=period_start,
+        period_end=period_end,
+        year_type=year_type,
+    )
+
 
 def bills_to_rows():
     rows = []

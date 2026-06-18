@@ -359,6 +359,56 @@
             <div class="mini-stat"><span>Annual recurring total</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(annual_total) }}</strong></div>
           </div>
         </div>
+
+      {% elif widget.widget_key == 'savings_goals' %}
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+              <div>
+                <div class="metric-label">Savings goals</div>
+                <h2 class="h5 mb-0">Active planned purchases</h2>
+              </div>
+              <a href="{{ url_for('main.purchases') }}" class="btn btn-outline-primary btn-sm">All goals</a>
+            </div>
+            {% if savings_goal_rows %}
+              {% for row in savings_goal_rows %}
+                {% set p = row.purchase %}
+                <div class="savings-goal-card mb-3">
+                  <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
+                    <div>
+                      <strong>{{ p.name }}</strong>
+                      {% if row.fully_funded %}<span class="badge text-bg-success ms-1">Fully funded!</span>{% endif %}
+                      <div class="text-muted small">{{ row.scope_label }}</div>
+                    </div>
+                    <div class="text-end">
+                      <div class="fw-semibold">{{ settings.currency_symbol }}{{ '%.2f'|format(p.amount_saved) }}<span class="text-muted fw-normal"> / {{ settings.currency_symbol }}{{ '%.2f'|format(p.target_amount) }}</span></div>
+                      {% if row.weeks_remaining is not none %}
+                        <div class="text-muted small">~{{ row.weeks_remaining }} weeks left</div>
+                      {% elif row.fully_funded %}
+                        <div class="text-success small">Ready to purchase</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                  <div class="progress" style="height: 10px;">
+                    <div class="progress-bar {{ 'bg-success' if row.fully_funded else '' }}" style="width: {{ row.progress }}%"></div>
+                  </div>
+                  <div class="d-flex justify-content-between small text-muted mt-1">
+                    <span>{{ settings.currency_symbol }}{{ '%.2f'|format(row.per_fortnight) }}/fortnight set aside</span>
+                    <span>{{ '%.0f'|format(row.progress) }}%</span>
+                  </div>
+                  {% if row.fully_funded %}
+                    <form class="mt-2" method="post" action="{{ url_for('main.mark_purchase_purchased', purchase_id=p.id) }}" onsubmit="return confirm('Mark as purchased?')">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button class="btn btn-success btn-sm w-100">Mark as purchased</button>
+                    </form>
+                  {% endif %}
+                </div>
+              {% endfor %}
+            {% else %}
+              <p class="text-muted mb-0">No active planned purchases. <a href="{{ url_for('main.new_purchase') }}">Add one</a></p>
+            {% endif %}
+          </div>
+        </div>
       {% endif %}
 
       </div>

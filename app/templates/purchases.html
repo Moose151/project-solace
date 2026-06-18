@@ -55,15 +55,24 @@
         <div class="purchase-stack">
           {% for row in shared_rows %}
             {% set purchase = row.purchase %}
-            <div class="purchase-card compact-card">
+            {% set fully_funded = purchase.amount_saved >= purchase.target_amount and purchase.status == 'Active' %}
+            <div class="purchase-card compact-card {{ 'purchase-card--funded' if fully_funded else '' }}">
               <div class="d-flex justify-content-between align-items-start gap-2">
                 <div>
                   <strong>{{ purchase.name }}</strong>
-                  <div class="text-muted small">{{ purchase.target_date }} · {{ purchase.priority }} priority · {{ purchase.status }}</div>
+                  {% if fully_funded %}<span class="badge text-bg-success ms-1">Fully funded!</span>{% endif %}
+                  <div class="text-muted small">{{ purchase.target_date }} · {{ purchase.priority }} priority</div>
                 </div>
-                <span class="badge text-bg-{{ 'success' if purchase.status == 'Purchased' else 'primary' if purchase.status == 'Active' else 'secondary' }}">{{ purchase.status }}</span>
+                {% if fully_funded %}
+                  <form method="post" action="{{ url_for('main.mark_purchase_purchased', purchase_id=purchase.id) }}" onsubmit="return confirm('Mark as purchased?')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-success btn-sm">Mark purchased</button>
+                  </form>
+                {% else %}
+                  <span class="badge text-bg-{{ 'primary' if purchase.status == 'Active' else 'secondary' }}">{{ purchase.status }}</span>
+                {% endif %}
               </div>
-              <div class="progress mt-2" style="height: 8px;"><div class="progress-bar" style="width: {{ row.progress }}%"></div></div>
+              <div class="progress mt-2" style="height: 8px;"><div class="progress-bar {{ 'bg-success' if fully_funded else '' }}" style="width: {{ row.progress }}%"></div></div>
               <div class="d-flex justify-content-between small text-muted mt-2">
                 <span>Saved {{ settings.currency_symbol }}{{ '%.2f'|format(purchase.amount_saved) }} / {{ settings.currency_symbol }}{{ '%.2f'|format(purchase.target_amount) }}</span>
                 <span>{{ settings.currency_symbol }}{{ '%.2f'|format(row.per_fortnight) }}/fortnight</span>
@@ -140,11 +149,13 @@
         <tbody>
         {% for row in purchase_rows %}
           {% set purchase = row.purchase %}
-          <tr>
+          {% set fully_funded = purchase.amount_saved >= purchase.target_amount and purchase.status == 'Active' %}
+          <tr class="{{ 'table-success' if fully_funded else '' }}">
             <td>
               <strong>{{ purchase.name }}</strong>
+              {% if fully_funded %}<span class="badge text-bg-success ms-1">Fully funded!</span>{% endif %}
               {% if purchase.status == 'Active' %}
-                <div class="progress mt-2" style="height: 8px;"><div class="progress-bar" style="width: {{ row.progress }}%"></div></div>
+                <div class="progress mt-2" style="height: 8px;"><div class="progress-bar {{ 'bg-success' if fully_funded else '' }}" style="width: {{ row.progress }}%"></div></div>
               {% endif %}
             </td>
             <td>
@@ -172,7 +183,7 @@
             <td class="text-end text-nowrap">
               <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.edit_purchase', purchase_id=purchase.id) }}">Edit</a>
               {% if purchase.status == 'Active' %}
-              <form class="d-inline" method="post" action="{{ url_for('main.mark_purchase_purchased', purchase_id=purchase.id) }}" onsubmit="return confirm('Mark this planned purchase as purchased?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-success btn-sm">Purchased</button></form>
+              <form class="d-inline" method="post" action="{{ url_for('main.mark_purchase_purchased', purchase_id=purchase.id) }}" onsubmit="return confirm('Mark this planned purchase as purchased?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn {{ 'btn-success' if fully_funded else 'btn-outline-success' }} btn-sm">Purchased</button></form>
               {% endif %}
               <form class="d-inline" method="post" action="{{ url_for('main.delete_purchase', purchase_id=purchase.id) }}" onsubmit="return confirm('Delete this planned purchase?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-danger btn-sm">Delete</button></form>
             </td>

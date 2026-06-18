@@ -178,6 +178,12 @@ def apply_lightweight_migrations():
     db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_payday_checklist_item_cycle_start ON payday_checklist_item (cycle_start)"))
     db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_audit_log_created_at ON audit_log (created_at)"))
 
+    if not column_exists("category", "fortnightly_budget"):
+        db.session.execute(text("ALTER TABLE category ADD COLUMN fortnightly_budget REAL"))
+
+    if not column_exists("cycle_closeout", "actual_income"):
+        db.session.execute(text("ALTER TABLE cycle_closeout ADD COLUMN actual_income REAL"))
+
     capped_buckets = Bucket.query.filter(Bucket.cap_to_remaining.is_(True)).order_by(Bucket.sort_order, Bucket.name).all()
     for bucket in capped_buckets[1:]:
         bucket.cap_to_remaining = False
@@ -203,6 +209,7 @@ def seed_dashboard_widgets():
         ("account_balance", "Bills account balance", False, 80, "medium", "Latest manual bills account balance snapshot."),
         ("due_next_30_days", "Due in next 30 days", False, 90, "wide", "All unpaid bills due in the next 30 days."),
         ("recurring_totals", "Recurring totals", False, 100, "medium", "Monthly average and annual recurring bill totals."),
+        ("savings_goals", "Savings goals", True, 65, "wide", "Active planned purchases with prominent progress bars and weeks remaining."),
     ]
     existing = {widget.widget_key: widget for widget in DashboardWidget.query.all()}
     for key, title, enabled, sort_order, size, description in defaults:

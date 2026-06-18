@@ -47,6 +47,8 @@
             <th class="text-end">Bills</th>
             <th class="text-end">Per week</th>
             <th class="text-end">Per fortnight</th>
+            <th class="text-end">Budget</th>
+            <th class="text-end">Over/Under</th>
             <th class="text-end">Per month</th>
             <th class="text-end">Per year</th>
           </tr>
@@ -58,11 +60,13 @@
             <td class="text-end">{{ row.bill_count }}</td>
             <td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(row.weekly) }}</td>
             <td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(row.fortnightly) }}</td>
+            <td class="text-end">{% if row.budget is not none %}{{ settings.currency_symbol }}{{ '%.2f'|format(row.budget) }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+            <td class="text-end">{% if row.budget_delta is not none %}<span class="{{ 'text-success' if row.budget_delta >= 0 else 'text-danger' }}">{{ '+' if row.budget_delta >= 0 else '' }}{{ settings.currency_symbol }}{{ '%.2f'|format(row.budget_delta) }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
             <td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(row.monthly) }}</td>
             <td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(row.yearly) }}</td>
           </tr>
           {% else %}
-          <tr><td colspan="6" class="text-center text-muted py-4">No bills match this overview filter.</td></tr>
+          <tr><td colspan="8" class="text-center text-muted py-4">No bills match this overview filter.</td></tr>
           {% endfor %}
         </tbody>
         <tfoot>
@@ -71,6 +75,8 @@
             <th class="text-end">{{ totals.bill_count }}</th>
             <th class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(totals.weekly) }}</th>
             <th class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(totals.fortnightly) }}</th>
+            <th class="text-end">—</th>
+            <th class="text-end">—</th>
             <th class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(totals.monthly) }}</th>
             <th class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(totals.yearly) }}</th>
           </tr>

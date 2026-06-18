@@ -90,18 +90,18 @@ Example buckets seen during testing:
 
 Example per-person split seen during testing:
 
-Em:
+Person1:
 
-- Income: `$2558.00`
+- Income: `$2560.00`
 - Bills/planned buckets: `$900.00`
-- Total buckets: `$2540.00`
+- Total buckets: `$340.00`
 - Remaining: `$18.00`
 
-Nick:
+Person2:
 
-- Income: `$3090.00`
-- Bills/planned buckets: `$1080.00`
-- Total buckets: `$3050.00`
+- Income: `$2500.00`
+- Bills/planned buckets: `800.00`
+- Total buckets: `$3300.00`
 - Remaining: `$40.00`
 
 The app should preserve the distinction between:

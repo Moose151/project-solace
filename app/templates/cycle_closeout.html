@@ -30,6 +30,11 @@
     {% for person in person_bucket_allocations %}<div class="soft-panel mb-3"><div class="d-flex justify-content-between"><strong>{{ person.person }}</strong><span>{{ settings.currency_symbol }}{{ '%.2f'|format(person.bucket_total) }}</span></div>{% for row in person.bucket_allocations %}<div class="mini-stat"><span>{{ row.bucket.name }}</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(row.rounded_amount) }}</strong></div>{% endfor %}</div>{% endfor %}
     <form method="post">
       {{ form.hidden_tag() }}
+      <div class="mb-3">
+        {{ form.actual_income.label(class='form-label') }}
+        {{ form.actual_income(class='form-control') }}
+        {% if income_total %}<div class="form-text">Expected: {{ settings.currency_symbol }}{{ '%.2f'|format(income_total) }}{% if closeout.actual_income %} · Recorded: {{ settings.currency_symbol }}{{ '%.2f'|format(closeout.actual_income) }}{% endif %}</div>{% endif %}
+      </div>
       {{ form.notes.label(class='form-label') }} {{ form.notes(class='form-control mb-3', rows=3) }}
       <button class="btn btn-primary" {% if closeout.status == 'Closed' %}disabled{% endif %}>{{ 'Cycle already closed' if closeout.status == 'Closed' else 'Close cycle' }}</button>
       {% if closeout.closed_at %}<div class="text-muted small mt-2">Closed {{ closeout.closed_at }}</div>{% endif %}
