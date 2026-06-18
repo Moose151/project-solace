@@ -850,6 +850,14 @@ All items from the previous backlog were implemented in June 2026. See section 1
 
 The mobile calendar agenda view already has inline Paid / Skip / View buttons per event. A true native-style bottom sheet (slide-up drawer) has not been implemented. Low priority while buttons work well.
 
+### Back button navigation
+
+Add a consistent back button on each page so users can quickly return to where they came from.
+
+Preferred approach: a small `← Back` link/button near the page heading that uses `history.back()` via JS, or a sensible hard-coded fallback URL for pages that are always reached from the same parent (e.g. bill edit → bill detail, bill detail → bills list). Pages already using this pattern (user edit, account) can serve as a reference.
+
+Do not use `history.back()` alone on pages that can be landed on directly from a bookmark or external link — those need a real fallback `href`.
+
 ### Notification automation
 
 The ntfy/Gotify test send is working. Not yet wired to automatic triggers:
