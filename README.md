@@ -56,61 +56,236 @@ Project Solace is deliberately not:
 
 ---
 
-## Quick start with Docker
+## Deploying with Docker
 
-This is the recommended way to run Project Solace.
+Docker is the recommended way to run Project Solace. Your data is stored in a Docker named volume (`solace-data`) that is completely separate from the container. Restarting, rebuilding, or updating the container does not affect your data.
 
-**Linux / macOS:**
+### Before you start — set up your `.env` file
+
+The `.env` file must be created before you start the container for the first time. It sets the admin account credentials and a secret key used to secure sessions.
+
+```bash
+cp .env.example .env
+```
+
+Then open `.env` in a text editor and set these values:
+
+```env
+FLASK_SECRET_KEY=replace-with-a-long-random-string
+SOLACE_ADMIN_USERNAME=admin
+SOLACE_ADMIN_PASSWORD=your-chosen-pin
+SOLACE_ADMIN_DISPLAY_NAME=Your Name
+DATABASE_URL=sqlite:////app/instance/solace.db
+FLASK_DEBUG=false
+```
+
+> **Important:** Set these values **before** running the container for the first time. The admin account is seeded from these values on first start. After that, you can change your display name and PIN from within the app — but the `.env` values are what get used if the database ever needs to be rebuilt from scratch.
+
+To generate a strong secret key:
+
+```bash
+python3 -c "import secrets; print(secrets.token_hex(32))"
+```
+
+---
+
+### Linux
+
+Install Docker if you haven't already:
+
+```bash
+sudo apt update && sudo apt install docker.io docker-compose-plugin
+sudo usermod -aG docker $USER   # then log out and back in
+```
+
+Clone and start the app:
 
 ```bash
 git clone https://github.com/Moose151/project-solace.git
 cd project-solace
 cp .env.example .env
-```
-
-Edit `.env` with your chosen credentials and a strong secret key (see [Configuration](#configuration) below), then:
-
-```bash
+nano .env        # or use any text editor
 docker compose up -d --build
 ```
 
-Open [http://localhost:5055](http://localhost:5055) in your browser and log in with the credentials you set in `.env`.
+Open [http://localhost:5055](http://localhost:5055) and log in with the display name and PIN you set in `.env`.
 
-**Windows:**
+---
 
-Install [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/) and ensure it is running, then open PowerShell:
+### macOS
+
+Install [Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/), open it, and wait until it shows "Docker Desktop is running."
+
+```bash
+git clone https://github.com/Moose151/project-solace.git
+cd project-solace
+cp .env.example .env
+open -e .env     # opens in TextEdit — or use any editor
+docker compose up -d --build
+```
+
+Open [http://localhost:5055](http://localhost:5055).
+
+---
+
+### Windows
+
+Install [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/). During installation, accept the WSL 2 backend option if prompted. Open Docker Desktop and wait until it shows "Docker Desktop is running" in the system tray before continuing.
+
+Open **PowerShell**:
 
 ```powershell
 git clone https://github.com/Moose151/project-solace.git
 cd project-solace
 copy .env.example .env
 notepad .env
+```
+
+Edit and save `.env`, then:
+
+```powershell
 docker compose up -d --build
 ```
 
 Open [http://localhost:5055](http://localhost:5055).
 
-To stop the container:
+> **Windows tip:** If `docker compose` isn't found, try `docker-compose` (with a hyphen). Older Docker Desktop versions use the hyphenated form.
 
-```powershell
-docker compose down
-```
-
-> **Note:** On Windows, Docker Desktop uses WSL 2 by default. The `:Z` volume label in `docker-compose.yml` is silently ignored on Windows — this is safe.
+> **Windows tip:** If the page doesn't load, check that Docker Desktop is still running (system tray) and that no other service is using port 5055. You can change the port in `.env` by adding `SOLACE_PORT=5056` (or any free port).
 
 ---
 
-## Local development
-
-### Linux / macOS
-
-Install prerequisites (Ubuntu/Debian):
+### Stopping and starting
 
 ```bash
-sudo apt update && sudo apt install git python3 python3-pip python3-venv
+docker compose down      # stops and removes the container — data is safe
+docker compose up -d     # starts it again
 ```
 
-Set up the project:
+**Your data is stored in a Docker named volume (`solace-data`), not inside the container.** Stopping, removing, or rebuilding the container does not delete your bills, users, income sources, or any other data.
+
+The only way to delete the volume (and all data) is to explicitly run:
+
+```bash
+docker compose down -v          # ⚠️ deletes the volume and all data
+docker volume rm solace-data    # ⚠️ same effect
+```
+
+Do not run these commands unless you intend to wipe all data and start fresh.
+
+---
+
+### What happens on container restart
+
+Every time the container starts, it runs a one-time setup check:
+
+- If no database exists yet, it creates one and seeds the initial admin account using the values in your `.env` file.
+- If the database already exists, the seed is skipped entirely — your existing users, bills, income sources, and settings are left exactly as they are.
+- Any display name or PIN changes you make inside the app are stored in the database and will survive restarts.
+
+In short: **restart safely whenever you need to.** Windows users often need to restart Docker Desktop — this is fine.
+
+---
+
+## Updating
+
+Back up your data before updating (see [Backups](#backups)).
+
+```bash
+git pull origin main
+docker compose down
+docker compose up -d --build
+```
+
+Your data volume is untouched. The update only replaces the application code. After starting, confirm the version at **Manage → System Info**.
+
+---
+
+## Configuration
+
+All configuration is done through the `.env` file. Copy `.env.example` to `.env` to get started. The real `.env` is gitignored and must never be committed to version control.
+
+| Variable | Required | Description |
+|---|---|---|
+| `FLASK_SECRET_KEY` | Yes | Random string used to sign sessions. Generate with `python3 -c "import secrets; print(secrets.token_hex(32))"` |
+| `SOLACE_ADMIN_USERNAME` | Yes | Internal username for the initial admin account (used for login lookup, not displayed) |
+| `SOLACE_ADMIN_PASSWORD` | Yes | PIN for the initial admin account |
+| `SOLACE_ADMIN_DISPLAY_NAME` | No | Display name shown on the login screen (default: `Admin`) |
+| `DATABASE_URL` | Yes | `sqlite:////app/instance/solace.db` for Docker · `sqlite:///instance/solace.db` for local dev |
+| `SOLACE_PORT` | No | Host port to expose (default: `5055`) |
+| `FLASK_DEBUG` | No | `true` for local dev · `false` (default) for production |
+
+> These values are only used to seed the initial account. Once the account exists in the database, changes made inside the app take effect immediately and are not overwritten by `.env` on restart.
+
+**Example `.env` for Docker:**
+
+```env
+FLASK_SECRET_KEY=replace-with-a-long-random-string
+SOLACE_ADMIN_USERNAME=admin
+SOLACE_ADMIN_PASSWORD=your-strong-pin
+SOLACE_ADMIN_DISPLAY_NAME=Household
+DATABASE_URL=sqlite:////app/instance/solace.db
+FLASK_DEBUG=false
+```
+
+**Example `.env` for local development:**
+
+```env
+FLASK_SECRET_KEY=local-dev-secret
+SOLACE_ADMIN_USERNAME=admin
+SOLACE_ADMIN_PASSWORD=1234
+DATABASE_URL=sqlite:///instance/solace.db
+FLASK_DEBUG=true
+```
+
+---
+
+## User accounts
+
+### The initial admin account
+
+When the container starts for the first time, one admin account is created using the credentials in your `.env` file. This is the only account initially — you can add more users from **Manage → Users** once you are logged in.
+
+### Changing your display name or PIN
+
+Log in and go to the user icon (top right) → **My Account**. You can change your display name and PIN there at any time. These changes are saved to the database immediately.
+
+### Adding more users
+
+Go to **Manage → Users** → **Add user**. Each user gets their own display name, emoji avatar, and PIN. All users see and edit the same household data — there is no per-user data separation.
+
+### If the database is reset
+
+If you ever need to start fresh (by deleting the volume), the admin account will be re-seeded from `.env`. Make sure `SOLACE_ADMIN_PASSWORD` and `SOLACE_ADMIN_DISPLAY_NAME` are set to what you want before doing this.
+
+---
+
+## Backups
+
+Use **Manage → Backup & Restore** in the app before applying updates.
+
+- The **SQLite database ZIP** is the full, restore-capable backup.
+- XLSX / CSV exports are useful for review but cannot restore the database.
+
+To back up the database directly from the Docker volume:
+
+```bash
+docker run --rm -v solace-data:/data -v $(pwd):/backup alpine \
+  tar -czf /backup/solace-backup-$(date +%F).tar.gz -C /data .
+```
+
+On Windows PowerShell:
+
+```powershell
+docker run --rm -v solace-data:/data -v ${PWD}:/backup alpine `
+  tar -czf /backup/solace-backup.tar.gz -C /data .
+```
+
+---
+
+## Local development (no Docker)
+
+### Linux / macOS
 
 ```bash
 git clone https://github.com/Moose151/project-solace.git
@@ -120,11 +295,7 @@ source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 cp .env.example .env
-```
-
-Edit `.env` for local development (see [Configuration](#configuration)), then run:
-
-```bash
+# edit .env for local dev
 python run.py
 ```
 
@@ -145,11 +316,6 @@ pip install --upgrade pip
 pip install -r requirements.txt
 copy .env.example .env
 notepad .env
-```
-
-Run:
-
-```bat
 python run.py
 ```
 
@@ -159,88 +325,6 @@ To deactivate the virtual environment when done:
 
 ```bat
 .venv\Scripts\deactivate
-```
-
----
-
-## Configuration
-
-Copy `.env.example` to `.env` and fill in the values. The real `.env` is gitignored and must never be committed.
-
-| Variable | Required | Description |
-|---|---|---|
-| `FLASK_SECRET_KEY` | Yes | Random string used to sign sessions. Generate one with `python3 -c "import secrets; print(secrets.token_hex(32))"` |
-| `SOLACE_ADMIN_USERNAME` | Yes | Username for the initial admin account |
-| `SOLACE_ADMIN_PASSWORD` | Yes | Password / PIN for the initial admin account |
-| `DATABASE_URL` | Yes | `sqlite:////app/instance/solace.db` for Docker · `sqlite:///instance/solace.db` for local dev |
-| `FLASK_DEBUG` | No | `true` for local dev · `false` (default) for production |
-
-**Example `.env` for Docker / production:**
-
-```env
-FLASK_SECRET_KEY=replace-with-a-long-random-string
-SOLACE_ADMIN_USERNAME=admin
-SOLACE_ADMIN_PASSWORD=your-strong-password
-DATABASE_URL=sqlite:////app/instance/solace.db
-FLASK_DEBUG=false
-```
-
-**Example `.env` for local development:**
-
-```env
-FLASK_SECRET_KEY=local-dev-secret
-SOLACE_ADMIN_USERNAME=admin
-SOLACE_ADMIN_PASSWORD=admin
-DATABASE_URL=sqlite:///instance/solace.db
-FLASK_DEBUG=true
-```
-
----
-
-## Updating
-
-Back up your data before updating (see [Backups](#backups)).
-
-```bash
-git pull origin main
-docker compose down
-docker compose build --no-cache
-docker compose up -d
-```
-
-If the container runs as a non-root user and you see permission errors on the `instance/` folder:
-
-```bash
-sudo chown -R 1000:1000 instance
-```
-
-Confirm the running version at `/system-info` after restarting.
-
----
-
-## SELinux hosts (Fedora / RHEL)
-
-The `docker-compose.yml` volume mount includes `:Z` for SELinux relabelling:
-
-```yaml
-./instance:/app/instance:Z
-```
-
-This is required on Fedora and RHEL hosts. Do not remove it on SELinux-enforcing systems.
-
----
-
-## Backups
-
-Use **Manage → Backup & Restore** in the app before applying updates.
-
-- The **SQLite database ZIP** is the full, restore-capable backup.
-- XLSX / CSV exports are useful for review but cannot restore the database.
-
-To back up the database directly on the host:
-
-```bash
-tar -czf solace-backup-$(date +%F).tar.gz instance
 ```
 
 ---
@@ -314,9 +398,9 @@ The Docker build is configured for small self-hosted deployments with SQLite:
 - Gunicorn: 1 worker, 4 threads, 60-second timeout
 - SQLite WAL mode and 30-second busy timeout enabled at startup
 - Startup seeding is serialised with a lock file to prevent race conditions
-- Container runs as a non-root user
+- Container runs as a non-root user (uid 1000)
 
-One worker is used intentionally — multiple workers can cause SQLite race conditions during the initial admin account seed.
+One worker is used intentionally — multiple workers can cause SQLite contention during startup.
 
 ---
 

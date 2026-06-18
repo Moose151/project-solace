@@ -264,12 +264,13 @@ def seed_default_data():
             stacklevel=2,
         )
         password = "1234"
+    display_name = os.environ.get("SOLACE_ADMIN_DISPLAY_NAME", "Admin")
 
     if not User.query.filter_by(username=username).first():
         db.session.add(User(
             username=username,
             password_hash=generate_password_hash(password),
-            display_name="Admin",
+            display_name=display_name,
             avatar_emoji="🏠",
             role="admin",
             active=True,
