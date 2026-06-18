@@ -8,6 +8,8 @@ Project Solace is still considered **beta software**. The current project line u
 
 **Important:** After every working session, commit all changes and push to GitHub before closing. This keeps the server deployment, local copies, and Git history in sync. Use the workflow in section 9.
 
+**Important:** Keep this file up to date. After implementing features, removing backlog items, changing architecture, or making decisions, update the relevant sections of this file before closing the session. A stale handover is worse than no handover.
+
 ---
 
 ## 1. Project overview
@@ -41,15 +43,9 @@ The design goal is a reliable, practical, low-friction household planning app.
 
 ## 2. User and household context
 
-The app is primarily for Nick and Em.
+The app is for a two-person household where both people have separate incomes, are paid fortnightly in the same broad pay cycle but on different days.
 
-The household has two income sources, with both people paid fortnightly in the same broad pay cycle but on different days. Example values used during testing included:
-
-- Em income: `$2558.00`, fortnightly
-- Nick income: `$3090.00`, fortnightly
-- Combined household income: `$5648.00`
-
-The app supports multiple income sources and assigns each to a person. It also supports **shared income** sources (e.g. rental income, Centrelink payments) that are not attributed to any one person.
+The app supports multiple income sources and assigns each to a named person. It also supports **shared income** sources (e.g. rental income, Centrelink payments) that are not attributed to any one person.
 
 Important concept: the income date stored for each income source should be treated as a **known pay date anchor**, not a manually updated "next pay date".
 
@@ -81,29 +77,6 @@ The normal household workflow is:
 8. Use Planned Purchases for upcoming shared or individual goals.
 9. Optionally use Cycle Closeout at the end of a cycle.
 
-Example buckets seen during testing:
-
-- Bills: `$1980.00`
-- Savings: `$2300.00`
-- Shared spending: `$850.00`
-- Individual spending: `$518.00`
-
-Example per-person split seen during testing:
-
-Person1:
-
-- Income: `$2560.00`
-- Bills/planned buckets: `$900.00`
-- Total buckets: `$340.00`
-- Remaining: `$18.00`
-
-Person2:
-
-- Income: `$2500.00`
-- Bills/planned buckets: `800.00`
-- Total buckets: `$3300.00`
-- Remaining: `$40.00`
-
 The app should preserve the distinction between:
 
 - Shared household set-aside
@@ -123,10 +96,10 @@ Known pay dates are recurrence anchors. They can be in the past and should not n
 
 Pay frequency (weekly or fortnightly) is stored in `Settings.pay_frequency`. The `get_cycle_window()` function reads this setting; do not bypass it.
 
-Pay-cycle example from testing:
+Pay-cycle example:
 
-- Current cycle: `03 Jun 2026 – 16 Jun 2026`
-- Next payday: `17 Jun 2026`
+- Current cycle: two-week window anchored to the earliest active income source
+- Next payday: the day after `cycle_end`
 
 Important bug already fixed:
 
@@ -366,11 +339,11 @@ http://localhost:5000/system-info
 
 The user often works across multiple laptops and the server. Be careful with Git.
 
-Set Git identity if needed:
+Set Git identity if needed (use your own name/email):
 
 ```bash
-git config --global user.name "Nick Lister"
-git config --global user.email "nicklister15@gmail.com"
+git config --global user.name "Your Name"
+git config --global user.email "your@email.com"
 ```
 
 Normal local workflow:
@@ -458,16 +431,17 @@ Dashboard shows household summary information and configurable widgets.
 Dashboard widgets include:
 
 - Current cycle summary
-- Bills due/unpaid this cycle
+- Bills due/unpaid this cycle (`due_before_next_payday`) — AJAX paid/skip, no page reload
 - Bucket summaries
 - Individual contribution summaries (per person)
 - Quick links
 - Planned purchase summaries
 - Payday checklist preview
-- Overdue bills
+- Overdue bills — AJAX paid/skip
 - Bills bucket health check
 - Account balance snapshot
 - Recurring totals (monthly/annual)
+- **Savings Goals** (`savings_goals`) — large progress bars, per-fortnight set-aside, weeks remaining, mark-purchased shortcut
 
 Dashboard layout is modular and configurable via:
 
@@ -587,8 +561,11 @@ It shows:
 - Bucket transfer/checklist completion
 - Close cycle button
 - Notes
+- **Actual income received** field (stores in `cycle_closeout.actual_income`) — informational only, does not change calculations
 
 It should remain lightweight and not become a full transaction ledger.
+
+**Cycle History** page (Planning → Cycle History) lists all closed cycles with paid totals, unpaid/skipped counts, and notes. Read-only.
 
 ### Buckets
 
@@ -629,13 +606,16 @@ Calendar supports:
 
 - Month view
 - List view
-- Mobile agenda-style view
+- Mobile agenda-style view — events grouped by **Today / This Week / Coming Up / Past**
 - Current day highlighting
 - Previous / this month / next controls
 - Bill and income events
 - Paid/skipped/upcoming visual distinctions
 - Bill events linking to bill detail
 - Date pickers
+- **Colour legend** (bill / income / paid / skipped) on desktop
+- **Overdue unpaid bills** shown in a red card above the calendar grid
+- **Quick-add `+` link** on each desktop calendar day cell — pre-fills first_due_date on the bill form
 
 ### Privacy mode
 
@@ -782,11 +762,12 @@ Important milestones:
 - 0.24.1-beta: Stability Hardening (race-safe seeding, WAL mode, busy_timeout, non-root Docker user)
 - 0.24.2-beta: Mobile Usability Patch (agenda calendar, date pickers, numeric keypads)
 - 0.25.0-beta: Shared Income & Weekly Cycles
+- 0.26.0-beta: 14-feature sprint (search, calendar improvements, ntfy, savings widget, annual summary, cycle history, category budgets, bill amount tracking, income variance)
 
 Latest build:
 
 ```text
-Project Solace 0.25.0-beta — Shared Income & Weekly Cycles
+Project Solace 0.26.0-beta — Feature Sprint
 ```
 
 ---
@@ -821,126 +802,52 @@ Recent completed additions include:
 - **`SharedIncomeAllocation` model** for custom per-bucket percentage splits on shared income
 - **Weekly pay cycle support** via `Settings.pay_frequency` and `get_cycle_window()`
 - **Income form UI** for configuring shared income allocation modes and lump/custom bucket targets
+- **AJAX Paid/Skip** on dashboard bill widgets — no page reload, toast feedback, running total update
+- **Date formatting** via `format_date` Jinja filter — all dates displayed as `DD Mon YYYY`
+
+### Session: 14 new features (June 2026)
+
+All items from the section 15 backlog were implemented:
+
+| # | Feature | Status |
+|---|---------|--------|
+| 1 | Calendar action sheet (mobile) | Inline action buttons already present; mobile agenda enhanced |
+| 2 | Overdue bills above calendar | ✅ Red card shown before calendar grid |
+| 3 | Today/This Week grouping in agenda | ✅ Mobile agenda sections: Today / This Week / Coming Up / Past |
+| 4 | Calendar legend | ✅ Colour key on desktop calendar view |
+| 5 | Bill search/filter | ✅ Live client-side name search on bills page |
+| 6 | Mark fully funded shortcut | ✅ Badge + prominent button when `amount_saved >= target_amount` |
+| 7 | Quick-add from calendar day | ✅ `+` link on desktop days, pre-fills bill form date |
+| 8 | ntfy push notifications | ✅ Test-send button wired to ntfy/Gotify via `urllib.request` |
+| 9 | Cycle history view | ✅ New page at Planning → Cycle History |
+| 10 | Annual/FY summary | ✅ New page at Planning → Annual Summary, calendar or FY (Jul–Jun) |
+| 11 | Per-category budget envelopes | ✅ `category.fortnightly_budget` column, over/under in overview |
+| 12 | Income variance notes | ✅ `cycle_closeout.actual_income` field on closeout form |
+| 13 | Bill amount change tracking | ✅ AuditLog entries on edit, shown on bill detail page |
+| 14 | Savings goals dashboard widget | ✅ New `savings_goals` widget with progress bars and weeks remaining |
 
 ---
 
 ## 15. Features to add
 
-These are backlog and suggested features. Items marked **[suggested]** are ideas not yet on the formal backlog.
+All items from the previous backlog were implemented in June 2026. See section 14 for the completion table.
 
-### Priority: complete before major new work
+### Remaining / new backlog
 
-- Verify `0.25.0-beta` on server and take a known-good backup.
-- Create GitHub release tags (`beta-0.24.1`, `beta-0.24.2`, `beta-0.25.0`) for stable snapshots.
-- Expand the test suite (see below).
+- Verify `0.26.0-beta` on server and take a known-good backup before deploying.
+- Create GitHub release tags for stable snapshots (`beta-0.25.0`, `beta-0.26.0`).
 
----
+### Calendar action sheet (mobile) — partial
 
-### Calendar improvements
+The mobile calendar agenda view already has inline Paid / Skip / View buttons per event. A true native-style bottom sheet (slide-up drawer) has not been implemented. Low priority while buttons work well.
 
-Future calendar work:
+### Notification automation
 
-- Better mobile agenda layout with grouping by "Today / Tomorrow / This week"
-- Today card surfaced at top of agenda view
-- Upcoming bills section (next 7 days)
-- Upcoming income section
-- Expandable day cards on mobile
-- Calendar legend
-- Paydays highlighted separately from ordinary income events
-- Bills due today highlighted or badged
-- Overdue unpaid bills surfaced above the calendar
+The ntfy/Gotify test send is working. Not yet wired to automatic triggers:
 
-### Calendar action sheet (mobile)
-
-On mobile, tapping a bill event should eventually open an action sheet with:
-
-- View bill
-- Mark paid
-- Skip this occurrence
-- Edit bill
-
-For income events:
-
-- View income source
-- View pay cycle
-- View payday checklist
-
-### Notification implementation
-
-The `NotificationSetting` model and scaffold already exist. The settings page exposes ntfy/Gotify/webhook configuration. Implementation needed:
-
-- Wire up an actual notification send on payday (bill due reminders)
-- In-app notification badge/banner
-- ntfy push notification (self-hosting-friendly; preferred over email)
-- Gotify webhook support
-- Keep simple — do not add email/SMTP unless explicitly requested
-
-The `due_soon_days` field on `NotificationSetting` already stores the reminder lead time.
-
-### Cycle history view
-
-A read-only page listing all closed `CycleCloseout` records with:
-
-- Cycle date range
-- Total bills expected, paid, skipped, unpaid
-- Total income for that cycle
-- Notes recorded at closeout
-- Link to a cycle detail view
-
-This would give a simple historical audit trail without needing full transaction tracking.
-
-### Bill amount change tracking [suggested]
-
-When a bill's amount is edited, record the old and new amounts in `AuditLog`. Surface a "history" tab on the bill detail page showing when the bill changed amount. Useful for tracking insurance, energy, and subscription price creep.
-
-### Annual / financial year summary [suggested]
-
-A summary page showing:
-
-- Total bills by category across the full budget year
-- Actual paid vs expected (from `BillOccurrence` records)
-- Income expected vs received (approximate, from income source records)
-- Australian financial year view (1 Jul – 30 Jun) as an option alongside calendar year
-
-This would not be a full ledger — just a read-only aggregate view of what the app already knows.
-
-### Savings goals progress widget [suggested]
-
-A dedicated dashboard widget showing planned purchase progress bars more prominently:
-
-- Progress bar per purchase (saved / target)
-- Fortnightly set-aside required
-- Weeks/pay-cycles remaining
-- Highlight fully funded or overdue targets
-
-### Bill search and quick-filter [suggested]
-
-On the bills list page (especially mobile):
-
-- A search/filter input that narrows the bill list by name in real time (client-side JS)
-- Combined with existing category filter
-- Useful when the bill list grows long
-
-### Planned purchase "mark fully funded" shortcut [suggested]
-
-Currently a purchase must be marked Purchased manually. Add a UI affordance (badge or button) when `amount_saved >= target_amount` to prompt "Mark as purchased?" directly from the purchases list without opening the edit form.
-
-### Income variance / payslip notes [suggested]
-
-On the payday checklist, allow recording an actual income figure that differs from the expected amount:
-
-- "Em actual income this cycle: $2600 (overtime)"
-- Stored as a note on `PaydayChecklistItem` or a new `IncomeVariance` record
-- Would not change budget calculations — purely informational
-- Surfaces on cycle closeout
-
-### Quick-add bill from calendar day [suggested]
-
-On the calendar, clicking "+" on a day pre-fills the first due date of the bill form with that day. Small UX improvement, no schema change needed.
-
-### Per-category budget envelopes [suggested]
-
-Extend `Category` with an optional fortnightly budget amount. The bill category overview page would then show actual vs budgeted per category, highlighting over/under. This keeps scope tight (bills only, no transaction import needed).
+- Send on payday (reminder for upcoming bills)
+- Send when a bill becomes overdue
+- `due_soon_days` on `NotificationSetting` exists but is not yet used for scheduling
 
 ### More tests
 
