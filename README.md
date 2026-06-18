@@ -1,140 +1,138 @@
 # Project Solace
 
-Current build: **0.27.0-beta — Avatar Login**
+> A self-hosted household finance planner for pay-cycle budgeting, recurring bills, and bucket-based transfers.
 
-Project Solace is a self-hosted household set-aside planner for recurring bills, planned purchases, income sources, and bucket-based payday transfers.
+**Current release: 0.27.0-beta**
 
-It is intentionally not a full transaction-tracking budget app. Its main job is to answer: **how much should each person transfer into each bucket this pay cycle?**
+Project Solace helps households answer one question each pay cycle:
+
+**How much should each person set aside for bills, savings, and spending buckets?**
+
+It is not a transaction tracker, bank importer, or full accounting app. It is a lightweight planning tool built for households where two or more people have separate incomes and want a simple, shared view of what needs to be transferred and when.
 
 ---
 
-## Versioning
+## What it does
 
-Project Solace is in beta. Earlier ZIP/build labels such as v1–v24 were rapid internal build numbers, not production release versions. The app uses beta-style versioning:
+- Tracks recurring bills and their pay-cycle due dates
+- Models income sources per person (weekly or fortnightly), including shared household income
+- Calculates how much each person should transfer into each budget bucket each pay cycle
+- Shows a payday checklist of transfers to complete
+- Tracks planned purchases (shared and individual)
+- Provides a calendar view of upcoming bills and income dates
+- Supports cycle closeout, cycle history, and an annual summary
 
-```text
-0.x.y-beta
+## What it is not
+
+Project Solace is deliberately not:
+
+- A bank transaction importer
+- A full double-entry accounting system
+- A replacement for apps like YNAB, Actual Budget, or a bank ledger
+
+---
+
+## Screenshots
+
+*Coming soon.*
+
+---
+
+## Tech stack
+
+- Python / Flask
+- SQLite (via Flask-SQLAlchemy)
+- Gunicorn
+- Docker / Docker Compose
+- Jinja2 templates
+- Vanilla CSS and JS (no frontend framework)
+
+---
+
+## Requirements
+
+- Docker and Docker Compose (recommended), **or**
+- Python 3.10+
+
+---
+
+## Quick start with Docker
+
+This is the recommended way to run Project Solace.
+
+**Linux / macOS:**
+
+```bash
+git clone https://github.com/Moose151/project-solace.git
+cd project-solace
+cp .env.example .env
 ```
 
-The current build is **0.27.0-beta**.
+Edit `.env` with your chosen credentials and a strong secret key (see [Configuration](#configuration) below), then:
+
+```bash
+docker compose up -d --build
+```
+
+Open [http://localhost:5055](http://localhost:5055) in your browser and log in with the credentials you set in `.env`.
+
+**Windows:**
+
+Install [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/) and ensure it is running, then open PowerShell:
+
+```powershell
+git clone https://github.com/Moose151/project-solace.git
+cd project-solace
+copy .env.example .env
+notepad .env
+docker compose up -d --build
+```
+
+Open [http://localhost:5055](http://localhost:5055).
+
+To stop the container:
+
+```powershell
+docker compose down
+```
+
+> **Note:** On Windows, Docker Desktop uses WSL 2 by default. The `:Z` volume label in `docker-compose.yml` is silently ignored on Windows — this is safe.
 
 ---
 
-## Feature set
+## Local development
 
-### Authentication
-
-- Meridian-style avatar/PIN login — tap your card, enter your PIN
-- User management at **Manage → Users**
-- Per-user display name and avatar emoji
-
-### Planning
-
-- Recurring bills (weekly, fortnightly, monthly, quarterly, six-monthly, yearly)
-- Income sources per person (weekly or fortnightly), including shared household income
-- Shared income allocation modes: standard, lump sum to a bucket, or custom per-bucket split
-- Bucket allocations by percentage or fixed amount, with remainder/cap and rounding
-- Per-person contribution breakdowns
-- Fortnightly and weekly pay-cycle support
-- Current and next pay cycle preview
-- Payday checklist with transfer items, hide/restore, and income confirmation
-- Cycle closeout with actual income field
-- Cycle history (Planning → Cycle History)
-- Annual / financial year summary (Planning → Annual Summary)
-- Per-category budget envelopes with over/under indicator
-
-### Dashboard
-
-- Modular, configurable dashboard layout (Manage → Dashboard Layout)
-- Widgets: cycle summary, bills due, bucket summaries, per-person contributions, planned purchases, payday checklist preview, overdue bills, bills bucket health, account balance snapshot, recurring totals, savings goals
-- AJAX paid/skip on bill widgets — no page reload, toast feedback, running total update
-- Savings goals widget with progress bars, per-fortnight set-aside, weeks to target, and mark-purchased shortcut
-
-### Calendar
-
-- Month grid and list views
-- Mobile agenda view grouped by Today / This Week / Coming Up / Past
-- Overdue unpaid bills shown above the calendar in a red card
-- Colour legend (bill / income / paid / skipped) on desktop
-- Quick-add `+` link on desktop day cells, pre-fills the bill form date
-- Bill events link to the bill detail page
-
-### Other
-
-- Planned purchases: shared (household) and individual (per person)
-- Privacy filter — blurs money values on screen, stored in browser local storage
-- Bill search / live client-side filter on the bills page
-- Bill detail page with audit log of amount changes
-- Back button navigation on detail/edit pages
-- Health check page (Manage → Health Check)
-- System Info / Diagnostics page (Manage → System Info)
-- Backup and restore (Manage → Backup & Restore)
-- Import preview with confirm/cancel flow
-- XLSX and ZIP export
-- Audit log
-- Dark mode
-- ntfy / Gotify push notification test send
-- Docker deployment
-- Dependabot for dependency alerts
-
----
-
-## Local development — Linux / macOS
+### Linux / macOS
 
 Install prerequisites (Ubuntu/Debian):
 
 ```bash
-sudo apt update
-sudo apt install git python3 python3-pip python3-venv
+sudo apt update && sudo apt install git python3 python3-pip python3-venv
 ```
 
-Clone and set up:
+Set up the project:
 
 ```bash
-mkdir -p ~/Documents
-cd ~/Documents
 git clone https://github.com/Moose151/project-solace.git
 cd project-solace
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
-```
-
-Configure environment:
-
-```bash
 cp .env.example .env
-nano .env
 ```
 
-Minimal `.env` for local development:
-
-```env
-FLASK_SECRET_KEY=local-dev-secret
-SOLACE_ADMIN_USERNAME=admin
-SOLACE_ADMIN_PASSWORD=admin
-DATABASE_URL=sqlite:///instance/solace.db
-FLASK_DEBUG=true
-```
-
-Run:
+Edit `.env` for local development (see [Configuration](#configuration)), then run:
 
 ```bash
 python run.py
 ```
 
-Open:
+Open [http://localhost:5000](http://localhost:5000).
 
-```text
-http://localhost:5000
-```
+### Windows
 
----
-
-## Local development — Windows
-
-Install [Python 3](https://www.python.org/downloads/windows/) (tick **Add Python to PATH** during install) and [Git for Windows](https://git-scm.com/download/win).
+Install [Python 3](https://www.python.org/downloads/windows/) (tick **Add Python to PATH** during setup) and [Git for Windows](https://git-scm.com/download/win).
 
 Open **Command Prompt** or **PowerShell**:
 
@@ -145,23 +143,8 @@ python -m venv .venv
 .venv\Scripts\activate
 pip install --upgrade pip
 pip install -r requirements.txt
-```
-
-Configure environment:
-
-```bat
 copy .env.example .env
 notepad .env
-```
-
-Minimal `.env` for local development on Windows:
-
-```env
-FLASK_SECRET_KEY=local-dev-secret
-SOLACE_ADMIN_USERNAME=admin
-SOLACE_ADMIN_PASSWORD=admin
-DATABASE_URL=sqlite:///instance/solace.db
-FLASK_DEBUG=true
 ```
 
 Run:
@@ -170,11 +153,7 @@ Run:
 python run.py
 ```
 
-Open:
-
-```text
-http://localhost:5000
-```
+Open [http://localhost:5000](http://localhost:5000).
 
 To deactivate the virtual environment when done:
 
@@ -184,132 +163,163 @@ To deactivate the virtual environment when done:
 
 ---
 
-## Docker — Linux (standard)
+## Configuration
 
-```bash
-cp .env.example .env
-nano .env
-docker compose up -d --build
+Copy `.env.example` to `.env` and fill in the values. The real `.env` is gitignored and must never be committed.
+
+| Variable | Required | Description |
+|---|---|---|
+| `FLASK_SECRET_KEY` | Yes | Random string used to sign sessions. Generate one with `python3 -c "import secrets; print(secrets.token_hex(32))"` |
+| `SOLACE_ADMIN_USERNAME` | Yes | Username for the initial admin account |
+| `SOLACE_ADMIN_PASSWORD` | Yes | Password / PIN for the initial admin account |
+| `DATABASE_URL` | Yes | `sqlite:////app/instance/solace.db` for Docker · `sqlite:///instance/solace.db` for local dev |
+| `FLASK_DEBUG` | No | `true` for local dev · `false` (default) for production |
+
+**Example `.env` for Docker / production:**
+
+```env
+FLASK_SECRET_KEY=replace-with-a-long-random-string
+SOLACE_ADMIN_USERNAME=admin
+SOLACE_ADMIN_PASSWORD=your-strong-password
+DATABASE_URL=sqlite:////app/instance/solace.db
+FLASK_DEBUG=false
 ```
 
-Open:
+**Example `.env` for local development:**
 
-```text
-http://localhost:5055
+```env
+FLASK_SECRET_KEY=local-dev-secret
+SOLACE_ADMIN_USERNAME=admin
+SOLACE_ADMIN_PASSWORD=admin
+DATABASE_URL=sqlite:///instance/solace.db
+FLASK_DEBUG=true
 ```
 
 ---
 
-## Docker — Linux with SELinux (Fedora / RHEL)
+## Updating
 
-The Docker Compose volume mount uses `:Z` for SELinux relabelling:
+Back up your data before updating (see [Backups](#backups)).
+
+```bash
+git pull origin main
+docker compose down
+docker compose build --no-cache
+docker compose up -d
+```
+
+If the container runs as a non-root user and you see permission errors on the `instance/` folder:
+
+```bash
+sudo chown -R 1000:1000 instance
+```
+
+Confirm the running version at `/system-info` after restarting.
+
+---
+
+## SELinux hosts (Fedora / RHEL)
+
+The `docker-compose.yml` volume mount includes `:Z` for SELinux relabelling:
 
 ```yaml
 ./instance:/app/instance:Z
 ```
 
-This is already present in the provided `docker-compose.yml`. Do not remove it on SELinux hosts.
-
-The container runs as a non-root user (`UID 1000`). If the `instance/` folder was previously owned by root, fix it before starting:
-
-```bash
-sudo chown -R 1000:1000 instance
-```
-
-Then deploy:
-
-```bash
-cp .env.example .env
-nano .env
-docker compose up -d --build
-docker compose ps
-docker compose logs --tail=50
-```
-
----
-
-## Docker — Windows
-
-Install [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/) and ensure it is running.
-
-Open **PowerShell** in the project folder:
-
-```powershell
-copy .env.example .env
-notepad .env
-docker compose up -d --build
-```
-
-Open:
-
-```text
-http://localhost:5055
-```
-
-To stop:
-
-```powershell
-docker compose down
-```
-
-> **Note:** On Windows, Docker Desktop uses WSL 2 by default. The `:Z` SELinux label in the volume mount is silently ignored on Windows — this is safe.
-
----
-
-## Environment variables
-
-| Variable | Required | Description |
-|---|---|---|
-| `FLASK_SECRET_KEY` | Yes | Random secret for session signing. Generate with `python3 -c "import secrets; print(secrets.token_hex(32))"` |
-| `SOLACE_ADMIN_USERNAME` | Yes | Admin account username |
-| `SOLACE_ADMIN_PASSWORD` | Yes | Admin account password / PIN |
-| `DATABASE_URL` | Yes | SQLite path. Use `sqlite:////app/instance/solace.db` in Docker, `sqlite:///instance/solace.db` for local dev |
-| `FLASK_DEBUG` | No | Set `false` on the server. Default is `false` |
-
-The real `.env` must never be committed. Only `.env.example` (with placeholders) is tracked by Git.
-
----
-
-## Server update workflow
-
-After pushing a new version to GitHub, update the server:
-
-```bash
-cd /opt/docker/project-solace/app
-
-# Back up the database first
-mkdir -p /opt/docker/backups/project-solace
-tar -czf /opt/docker/backups/project-solace/project-solace-before-update-$(date +%F-%H%M).tar.gz instance
-
-git pull origin main
-sudo chown -R 1000:1000 instance
-docker compose down
-docker compose build --no-cache
-docker compose up -d
-docker compose ps
-docker compose logs --tail=80
-```
-
-Confirm the running version at `/system-info`.
+This is required on Fedora and RHEL hosts. Do not remove it on SELinux-enforcing systems.
 
 ---
 
 ## Backups
 
-Use **Manage → Backup & Restore** before applying updates.
+Use **Manage → Backup & Restore** in the app before applying updates.
 
-- The **SQLite database ZIP** is the restore-capable backup.
-- CSV/XLSX exports are useful for review but cannot be used to restore the database.
+- The **SQLite database ZIP** is the full, restore-capable backup.
+- XLSX / CSV exports are useful for review but cannot restore the database.
+
+To back up the database directly on the host:
+
+```bash
+tar -czf solace-backup-$(date +%F).tar.gz instance
+```
 
 ---
 
-## Server stability defaults
+## Features
 
-The Docker build is configured for small household self-hosting with SQLite:
+### Users
 
-- Gunicorn: `1` worker, `4` threads, `60` second timeout.
-- SQLite WAL mode and a `30` second busy timeout are enabled at app startup.
-- Startup database setup is serialised with an instance-folder lock file.
-- Docker Compose mounts `./instance:/app/instance:Z` for Fedora/SELinux compatibility.
+- Avatar and PIN login — users tap their card then enter a PIN
+- Per-user display name and emoji avatar
+- User management at **Manage → Users**
 
-One worker was chosen deliberately — two workers caused an SQLite race condition during admin seeding on first boot.
+### Bills and income
+
+- Recurring bills with frequencies: weekly, fortnightly, monthly, quarterly, six-monthly, yearly
+- Optional stop-after date, autopay flag, category, account, and notes per bill
+- Income sources per person (weekly or fortnightly)
+- Shared household income with three allocation modes: standard pool, lump sum to a bucket, or custom per-bucket split
+- "Known pay date" anchor — no manual updates needed each fortnight
+
+### Pay-cycle planning
+
+- Budget buckets by percentage or fixed amount, with remainder/cap and rounding increment
+- Per-person contribution breakdown each cycle
+- Weekly and fortnightly pay-cycle support
+- Current and next cycle preview
+- Payday checklist with transfer items, income confirmation, and hide/restore
+- Cycle closeout with actual income tracking
+- Cycle history (Planning → Cycle History)
+- Annual / financial year summary (Planning → Annual Summary)
+- Per-category budget envelopes with over/under indicator
+
+### Dashboard
+
+- Modular dashboard with configurable widget layout (Manage → Dashboard Layout)
+- Widgets: cycle summary, bills due this cycle, bucket summaries, per-person contributions, planned purchases, payday checklist preview, overdue bills, bills bucket health, account balance snapshot, recurring totals, savings goals
+- Mark bills paid or skipped directly from the dashboard without a page reload
+
+### Calendar
+
+- Month grid, list, and mobile agenda views
+- Agenda grouped by Today / This Week / Coming Up / Past
+- Overdue unpaid bills highlighted above the calendar
+- Quick-add link on desktop day cells to pre-fill the bill form date
+
+### Planned purchases
+
+- Shared purchases funded by the household
+- Individual purchases funded by a specific person's allocation
+- Savings goals widget with progress bars and weeks-to-target
+
+### Tools and admin
+
+- Privacy filter — blurs money values on screen (stored in browser local storage)
+- Live bill search and filter
+- Bill detail page with audit log of amount changes
+- Health check page (Manage → Health Check)
+- System info / diagnostics page (Manage → System Info)
+- Backup and restore with import preview
+- XLSX and ZIP export
+- Push notifications via ntfy / Gotify (test send)
+- Dark mode
+- Mobile-optimised UI throughout
+
+---
+
+## Server stability
+
+The Docker build is configured for small self-hosted deployments with SQLite:
+
+- Gunicorn: 1 worker, 4 threads, 60-second timeout
+- SQLite WAL mode and 30-second busy timeout enabled at startup
+- Startup seeding is serialised with a lock file to prevent race conditions
+- Container runs as a non-root user
+
+One worker is used intentionally — multiple workers can cause SQLite race conditions during the initial admin account seed.
+
+---
+
+## License
+
+Project Solace is personal/hobbyist software shared publicly. No formal license is currently attached. If you intend to fork or redistribute it, please open an issue to discuss.
