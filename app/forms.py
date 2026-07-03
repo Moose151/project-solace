@@ -100,6 +100,9 @@ class SettingsForm(FlaskForm):
     theme = SelectField("Theme", choices=[("Light", "Light"), ("Dark", "Dark"), ("Auto", "Auto")])
     show_help_tips = BooleanField("Show help tips", default=True, description="Shows small ? icons beside optional guidance. Important warnings are still shown even when this is off.")
     payday_bill_handling = SelectField("Bills due on payday belong to", choices=[("new_cycle", "New pay cycle"), ("previous_cycle", "Previous pay cycle")], description="Choose whether a bill due on payday should appear in the cycle that just ended or the new cycle starting on payday.")
+    bills_account_name = StringField("Bills account name", validators=[Optional(), Length(max=120)], description="Used by the balance forecast. Leave blank to count every bill; otherwise only bills whose 'Account paid from' matches this name are counted.")
+    bills_account_include_blank = BooleanField("Count bills with no account set", default=True, description="When on, bills without an 'Account paid from' value are assumed to be paid from the bills account. Turn off to require an exact account match.")
+    forecast_months = IntegerField("Forecast horizon (months)", validators=[DataRequired(), NumberRange(min=1, max=36)], default=12, description="How far ahead the bills account forecast looks for shortfalls.", render_kw=NUMERIC_INPUT_KWARGS)
     submit = SubmitField("Save settings")
 
 

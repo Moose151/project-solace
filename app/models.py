@@ -36,6 +36,11 @@ class Settings(db.Model):
     setup_checklist_dismissed = db.Column(db.Boolean, default=False)
     show_help_tips = db.Column(db.Boolean, default=True)
     payday_bill_handling = db.Column(db.String(20), nullable=False, default="new_cycle")  # new_cycle or previous_cycle
+    # Bills account forecast configuration.
+    # bills_account_name matches against RecurringBill.account_name (blank = count every bill).
+    bills_account_name = db.Column(db.String(120), nullable=True)
+    bills_account_include_blank = db.Column(db.Boolean, nullable=False, default=True)
+    forecast_months = db.Column(db.Integer, nullable=False, default=12)
 
 
 class Category(db.Model):

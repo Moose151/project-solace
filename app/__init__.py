@@ -146,6 +146,15 @@ def apply_lightweight_migrations():
     if not column_exists("settings", "payday_bill_handling"):
         db.session.execute(text("ALTER TABLE settings ADD COLUMN payday_bill_handling VARCHAR(20) NOT NULL DEFAULT 'new_cycle'"))
 
+    if not column_exists("settings", "bills_account_name"):
+        db.session.execute(text("ALTER TABLE settings ADD COLUMN bills_account_name VARCHAR(120)"))
+
+    if not column_exists("settings", "bills_account_include_blank"):
+        db.session.execute(text("ALTER TABLE settings ADD COLUMN bills_account_include_blank BOOLEAN NOT NULL DEFAULT 1"))
+
+    if not column_exists("settings", "forecast_months"):
+        db.session.execute(text("ALTER TABLE settings ADD COLUMN forecast_months INTEGER NOT NULL DEFAULT 12"))
+
     if not column_exists("bucket", "cap_to_remaining"):
         db.session.execute(text("ALTER TABLE bucket ADD COLUMN cap_to_remaining BOOLEAN NOT NULL DEFAULT 0"))
 
@@ -196,6 +205,14 @@ def apply_lightweight_migrations():
     for u in User.query.filter(User.avatar_emoji.is_(None)).all():
         u.avatar_emoji = "🏠"
 
+    # One-time upgrade of the balance widget into the forecast widget. Keyed on
+    # the old title so a household that later renames/disables it is left alone.
+    balance_widget = DashboardWidget.query.filter_by(widget_key="account_balance", title="Bills account balance").first()
+    if balance_widget:
+        balance_widget.title = "Bills account forecast"
+        balance_widget.description = "Bills account balance with a forward forecast and shortfall warnings."
+        balance_widget.enabled = True
+
     capped_buckets = Bucket.query.filter(Bucket.cap_to_remaining.is_(True)).order_by(Bucket.sort_order, Bucket.name).all()
     for bucket in capped_buckets[1:]:
         bucket.cap_to_remaining = False
@@ -218,7 +235,7 @@ def seed_dashboard_widgets():
         ("due_before_next_payday", "Due this cycle", True, 50, "wide", "Upcoming bills due before the current cycle ends."),
         ("overdue_bills", "Overdue bills", True, 60, "wide", "Unpaid bills with due dates before today."),
         ("planned_purchases", "Planned purchases", False, 70, "medium", "Active planned purchases and quick-add saved amount."),
-        ("account_balance", "Bills account balance", False, 80, "medium", "Latest manual bills account balance snapshot."),
+        ("account_balance", "Bills account forecast", True, 80, "medium", "Bills account balance with a forward forecast and shortfall warnings."),
         ("due_next_30_days", "Due in next 30 days", False, 90, "wide", "All unpaid bills due in the next 30 days."),
         ("recurring_totals", "Recurring totals", False, 100, "medium", "Monthly average and annual recurring bill totals."),
         ("savings_goals", "Savings goals", True, 65, "wide", "Active planned purchases with prominent progress bars and weeks remaining."),

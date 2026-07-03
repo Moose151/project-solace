@@ -13,6 +13,10 @@
   <div class="col-md-4">{{ form.theme.label(class="form-label") }} {{ form.theme(class="form-select") }}</div>
   <div class="col-md-4">{{ form.payday_bill_handling.label(class="form-label") }} {{ form.payday_bill_handling(class="form-select") }}<div class="form-text">{{ form.payday_bill_handling.description }}</div></div>
   <div class="col-md-4"><div class="form-check mt-4">{{ form.show_help_tips(class="form-check-input") }} {{ form.show_help_tips.label(class="form-check-label") }} {{ help_tip(form.show_help_tips.description) }}</div></div>
+  <div class="col-12"><hr class="my-2"><h2 class="h6 text-muted mb-0">Bills account forecast</h2></div>
+  <div class="col-md-4">{{ form.bills_account_name.label(class="form-label") }} {{ form.bills_account_name(class="form-control", placeholder="e.g. Bills") }}<div class="form-text">{{ form.bills_account_name.description }}</div></div>
+  <div class="col-md-4">{{ form.forecast_months.label(class="form-label") }} {{ form.forecast_months(class="form-control") }}<div class="form-text">{{ form.forecast_months.description }}</div></div>
+  <div class="col-md-4"><div class="form-check mt-4">{{ form.bills_account_include_blank(class="form-check-input") }} {{ form.bills_account_include_blank.label(class="form-check-label") }} {{ help_tip(form.bills_account_include_blank.description) }}</div></div>
   <div class="col-12"><button class="btn btn-primary">Save settings</button></div>
 </div></form>
 {% endblock %}

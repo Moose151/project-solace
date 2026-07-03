@@ -1,0 +1,314 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+  <div>
+    <h1 class="mb-1">Bills Account Forecast</h1>
+    <p class="text-muted mb-0">Running balance for the next {{ data.months }} month{{ 's' if data.months != 1 }} — transfers in on paydays, bills out on due dates.</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-primary btn-sm" href="{{ url_for('main.account_balance') }}">Update balance</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.settings_page') }}">Forecast settings</a>
+  </div>
+</div>
+
+{% if not data.latest_snapshot %}
+<div class="alert alert-warning">
+  No bills account balance has been recorded yet, so this forecast starts from {{ settings.currency_symbol }}0.00.
+  <a class="alert-link" href="{{ url_for('main.account_balance') }}">Record your current balance</a> to make it accurate.
+</div>
+{% elif data.snapshot_age_days > 7 %}
+<div class="alert alert-info">
+  The balance was last recorded {{ data.snapshot_age_days }} days ago ({{ data.snapshot_date.isoformat()|format_date }}).
+  The forecast simulates transfers and bill payments since then, but
+  <a class="alert-link" href="{{ url_for('main.account_balance') }}">updating the balance</a> keeps it accurate.
+</div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">
+    <div class="card h-100"><div class="card-body">
+      <div class="metric-label">Recorded balance</div>
+      <div class="h4 mb-1">{{ settings.currency_symbol }}{{ '%.2f'|format(data.starting_balance) }}</div>
+      <div class="text-muted small">{% if data.latest_snapshot %}on {{ data.snapshot_date.isoformat()|format_date }}{% else %}not recorded{% endif %}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card h-100"><div class="card-body">
+      <div class="metric-label">Projected today</div>
+      <div class="h4 mb-1">{{ settings.currency_symbol }}{{ '%.2f'|format(data.balance_today) }}</div>
+      <div class="text-muted small">{{ today.isoformat()|format_date }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card h-100"><div class="card-body">
+      <div class="metric-label">Lowest point</div>
+      <div class="h4 mb-1 {{ 'text-danger' if data.forecast.min_balance < 0 }}">{{ settings.currency_symbol }}{{ '%.2f'|format(data.forecast.min_balance) }}</div>
+      <div class="text-muted small">{% if data.forecast.min_date %}on {{ data.forecast.min_date.isoformat()|format_date }}{% else %}no dips ahead{% endif %}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card h-100"><div class="card-body">
+      <div class="metric-label">Bills at risk</div>
+      <div class="h4 mb-1 {{ 'text-danger' if data.forecast.shortfalls else 'text-success' }}">{{ data.forecast.shortfalls|length }}</div>
+      <div class="text-muted small">{% if data.forecast.shortfalls %}first on {{ data.forecast.shortfalls[0].date.isoformat()|format_date }}{% else %}all bills covered{% endif %}</div>
+    </div></div>
+  </div>
+</div>
+
+{% if data.forecast.shortfalls %}
+<div class="card border-danger mb-4">
+  <div class="card-body">
+    <h2 class="h5 text-danger">⚠ Shortfall warnings</h2>
+    <p class="text-muted small mb-2">These bills would overdraw the bills account when they fall due, after all earlier bills and payday transfers are counted.</p>
+    <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Due</th><th>Bill</th><th class="text-end">Amount</th><th class="text-end">Balance after</th><th class="text-end">Short by</th></tr></thead>
+      <tbody>
+      {% for event in data.forecast.shortfalls[:15] %}
+        <tr>
+          <td>{{ event.date.isoformat()|format_date }}{% if event.overdue %} <span class="badge text-bg-warning">overdue</span>{% endif %}</td>
+          <td>{{ event.label }}</td>
+          <td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(event.amount) }}</td>
+          <td class="text-end text-danger">{{ settings.currency_symbol }}{{ '%.2f'|format(event.balance_after) }}</td>
+          <td class="text-end text-danger fw-semibold">{{ settings.currency_symbol }}{{ '%.2f'|format(-event.balance_after) }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% if data.forecast.shortfalls|length > 15 %}
+    <p class="text-muted small mb-0 mt-2">…and {{ data.forecast.shortfalls|length - 15 }} more in the timeline below.</p>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-4 mb-4">
+  <div class="col-lg-4">
+    <div class="card h-100"><div class="card-body">
+      <h2 class="h5">Balance on a date</h2>
+      <p class="text-muted small">How much will be in the account at the end of a chosen day.</p>
+      <form method="get" class="d-flex gap-2">
+        <input class="form-control" type="date" name="on" value="{{ check_date.isoformat() if check_date else '' }}" min="{{ data.start.isoformat() }}" max="{{ data.end.isoformat() }}" required>
+        <button class="btn btn-outline-primary">Check</button>
+      </form>
+      {% if check_error %}
+        <div class="alert alert-warning mt-3 mb-0">{{ check_error }}</div>
+      {% elif check_date %}
+        <div class="mt-3 p-3 border rounded {{ 'border-danger' if check_balance < 0 }}">
+          <div class="metric-label">Projected on {{ check_date.isoformat()|format_date }}</div>
+          <div class="h3 mb-0 {{ 'text-danger' if check_balance < 0 }}">{{ settings.currency_symbol }}{{ '%.2f'|format(check_balance) }}</div>
+        </div>
+      {% endif %}
+    </div></div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card h-100"><div class="card-body">
+      <h2 class="h5 mb-3">Projected balance</h2>
+      <div class="viz-root" id="forecastChart" aria-label="Projected bills account balance over time"></div>
+    </div></div>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h2 class="h5">Timeline</h2>
+    <p class="text-muted small mb-2">Every expected transfer in and bill out, with the running balance after each.</p>
+    {% if data.forecast.events %}
+    <div class="table-responsive" style="max-height: 26rem; overflow-y: auto;">
+      <table class="table table-sm align-middle mb-0">
+        <thead class="sticky-top"><tr><th>Date</th><th>Event</th><th class="text-end">In</th><th class="text-end">Out</th><th class="text-end">Balance</th></tr></thead>
+        <tbody>
+        {% for event in data.forecast.events %}
+          <tr class="{{ 'table-danger' if event.shortfall }}">
+            <td class="text-nowrap">{{ event.date.isoformat()|format_date }}</td>
+            <td>{{ event.label }}{% if event.overdue %} <span class="badge text-bg-warning">overdue</span>{% endif %}</td>
+            <td class="text-end text-success">{% if event.type == 'inflow' %}+{{ settings.currency_symbol }}{{ '%.2f'|format(event.amount) }}{% endif %}</td>
+            <td class="text-end">{% if event.type == 'bill' %}−{{ settings.currency_symbol }}{{ '%.2f'|format(event.amount) }}{% endif %}</td>
+            <td class="text-end fw-semibold {{ 'text-danger' if event.balance_after < 0 }}">{{ settings.currency_symbol }}{{ '%.2f'|format(event.balance_after) }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}<p class="text-muted mb-0">No upcoming transfers or bills found in the forecast window.</p>{% endif %}
+  </div>
+</div>
+
+{% if data.account_name and data.excluded_bills %}
+<p class="text-muted small">
+  Not counted (paid from another account): {% for bill in data.excluded_bills %}{{ bill.name }}{{ ', ' if not loop.last }}{% endfor %}.
+  Bills are matched against the account name “{{ data.account_name }}” from <a href="{{ url_for('main.settings_page') }}">Settings</a>.
+</p>
+{% endif %}
+
+<style>
+  .viz-root {
+    --viz-line: #2a78d6;
+    --viz-critical: #d03b3b;
+    --viz-grid: #e1e0d9;
+    --viz-baseline: #c3c2b7;
+    --viz-muted: #898781;
+    --viz-ink: #0b0b0b;
+    --viz-surface: #fcfcfb;
+    --viz-fill: rgba(42, 120, 214, 0.08);
+  }
+  [data-bs-theme="dark"] .viz-root {
+    --viz-line: #3987e5;
+    --viz-critical: #d03b3b;
+    --viz-grid: #2c2c2a;
+    --viz-baseline: #383835;
+    --viz-muted: #898781;
+    --viz-ink: #ffffff;
+    --viz-surface: #1a1a19;
+    --viz-fill: rgba(57, 135, 229, 0.12);
+  }
+  .viz-root { position: relative; }
+  .viz-tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: var(--viz-surface);
+    color: var(--viz-ink);
+    border: 1px solid var(--viz-grid);
+    border-radius: 0.375rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    padding: 0.35rem 0.55rem;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    display: none;
+    z-index: 5;
+  }
+  .viz-tooltip .viz-tooltip-value { font-weight: 600; font-variant-numeric: tabular-nums; }
+</style>
+
+<script id="forecastData" type="application/json">{{ chart_points|tojson }}</script>
+<script>
+(function solaceForecastChart() {
+  var container = document.getElementById('forecastChart');
+  var points = JSON.parse(document.getElementById('forecastData').textContent);
+  if (!container || points.length < 2) return;
+  var currency = {{ settings.currency_symbol|tojson }};
+  var NS = 'http://www.w3.org/2000/svg';
+
+  function el(name, attrs, parent) {
+    var node = document.createElementNS(NS, name);
+    for (var key in attrs) node.setAttribute(key, attrs[key]);
+    if (parent) parent.appendChild(node);
+    return node;
+  }
+  function css(name) { return getComputedStyle(container).getPropertyValue(name).trim(); }
+  function fmtMoney(value) {
+    var sign = value < 0 ? '−' : '';
+    return sign + currency + Math.abs(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function fmtDate(iso) {
+    var d = new Date(iso + 'T00:00:00');
+    return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  function render() {
+    container.innerHTML = '';
+    var width = Math.max(container.clientWidth || 600, 320);
+    var height = 300;
+    var pad = { top: 12, right: 12, bottom: 26, left: 56 };
+
+    var t0 = new Date(points[0].d + 'T00:00:00').getTime();
+    var t1 = new Date(points[points.length - 1].d + 'T00:00:00').getTime();
+    var values = points.map(function(p) { return p.b; });
+    var vMin = Math.min(0, Math.min.apply(null, values));
+    var vMax = Math.max(0, Math.max.apply(null, values));
+    if (vMax === vMin) vMax = vMin + 1;
+    var span = vMax - vMin;
+    vMax += span * 0.06; vMin -= span * 0.06;
+
+    function x(t) { return pad.left + (t - t0) / (t1 - t0 || 1) * (width - pad.left - pad.right); }
+    function y(v) { return pad.top + (vMax - v) / (vMax - vMin) * (height - pad.top - pad.bottom); }
+
+    var svg = el('svg', { viewBox: '0 0 ' + width + ' ' + height, width: '100%', height: height, role: 'img' }, container);
+
+    // Recessive horizontal grid at ~4 nice steps, labelled in muted ink.
+    var step = Math.pow(10, Math.floor(Math.log10((vMax - vMin) / 4)));
+    var mult = (vMax - vMin) / 4 / step;
+    step *= mult >= 5 ? 5 : (mult >= 2 ? 2 : 1);
+    for (var v = Math.ceil(vMin / step) * step; v <= vMax; v += step) {
+      el('line', { x1: pad.left, x2: width - pad.right, y1: y(v), y2: y(v), stroke: css('--viz-grid'), 'stroke-width': 1 }, svg);
+      var tick = el('text', { x: pad.left - 8, y: y(v) + 3, 'text-anchor': 'end', fill: css('--viz-muted'), 'font-size': 11, 'font-family': 'system-ui, sans-serif' }, svg);
+      tick.textContent = currency + (Math.abs(v) >= 1000 ? (v / 1000) + 'k' : Math.round(v));
+    }
+
+    // Month labels along the x axis.
+    var start = new Date(points[0].d + 'T00:00:00');
+    var cursor = new Date(start.getFullYear(), start.getMonth() + 1, 1);
+    var lastLabelX = -Infinity;
+    while (cursor.getTime() <= t1) {
+      var mx = x(cursor.getTime());
+      if (mx - lastLabelX > 44) {
+        var label = el('text', { x: mx, y: height - 8, 'text-anchor': 'middle', fill: css('--viz-muted'), 'font-size': 11, 'font-family': 'system-ui, sans-serif' }, svg);
+        label.textContent = cursor.toLocaleDateString(undefined, { month: 'short' });
+        lastLabelX = mx;
+      }
+      cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+    }
+
+    // Zero baseline, slightly stronger than the grid.
+    if (vMin < 0) {
+      el('line', { x1: pad.left, x2: width - pad.right, y1: y(0), y2: y(0), stroke: css('--viz-baseline'), 'stroke-width': 1.5 }, svg);
+    }
+
+    // Step path: balance holds until the next event.
+    var path = '';
+    points.forEach(function(p, i) {
+      var px = x(new Date(p.d + 'T00:00:00').getTime());
+      var py = y(p.b);
+      path += (i === 0 ? 'M' + px + ' ' + py : ' H' + px + ' V' + py);
+    });
+    el('path', { d: path, fill: 'none', stroke: css('--viz-line'), 'stroke-width': 2, 'stroke-linejoin': 'round' }, svg);
+
+    // Shortfall markers: critical status color with a surface ring; the
+    // warnings table above carries the icon + label pairing.
+    points.forEach(function(p) {
+      if (!p.s) return;
+      var px = x(new Date(p.d + 'T00:00:00').getTime());
+      el('circle', { cx: px, cy: y(p.b), r: 5, fill: css('--viz-critical'), stroke: css('--viz-surface'), 'stroke-width': 2 }, svg);
+    });
+
+    // Crosshair + tooltip.
+    var tooltip = document.createElement('div');
+    tooltip.className = 'viz-tooltip';
+    container.appendChild(tooltip);
+    var crosshair = el('line', { y1: pad.top, y2: height - pad.bottom, stroke: css('--viz-baseline'), 'stroke-width': 1, 'stroke-dasharray': '3 3', visibility: 'hidden' }, svg);
+    var dot = el('circle', { r: 4, fill: css('--viz-line'), stroke: css('--viz-surface'), 'stroke-width': 2, visibility: 'hidden' }, svg);
+
+    svg.addEventListener('mousemove', function(evt) {
+      var rect = svg.getBoundingClientRect();
+      var mx = (evt.clientX - rect.left) * (width / rect.width);
+      var t = t0 + (mx - pad.left) / (width - pad.left - pad.right) * (t1 - t0);
+      var current = points[0];
+      for (var i = 0; i < points.length; i++) {
+        if (new Date(points[i].d + 'T00:00:00').getTime() <= t) current = points[i]; else break;
+      }
+      var px = Math.min(Math.max(mx, pad.left), width - pad.right);
+      crosshair.setAttribute('x1', px); crosshair.setAttribute('x2', px);
+      crosshair.setAttribute('visibility', 'visible');
+      dot.setAttribute('cx', px); dot.setAttribute('cy', y(current.b));
+      dot.setAttribute('visibility', 'visible');
+      tooltip.innerHTML = '<div>' + fmtDate(current.d) + '</div><div class="viz-tooltip-value">' + fmtMoney(current.b) + '</div>';
+      tooltip.style.display = 'block';
+      var left = (px / width) * rect.width;
+      tooltip.style.left = Math.min(left + 12, rect.width - tooltip.offsetWidth - 4) + 'px';
+      tooltip.style.top = '8px';
+    });
+    svg.addEventListener('mouseleave', function() {
+      crosshair.setAttribute('visibility', 'hidden');
+      dot.setAttribute('visibility', 'hidden');
+      tooltip.style.display = 'none';
+    });
+  }
+
+  render();
+  var resizeTimer = null;
+  window.addEventListener('resize', function() {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(render, 150);
+  });
+})();
+</script>
+{% endblock %}

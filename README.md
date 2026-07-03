@@ -2,7 +2,7 @@
 
 > A self-hosted household finance planner for pay-cycle budgeting, recurring bills, and bucket-based transfers.
 
-**Current release: 0.27.0-beta**
+**Current release: 0.28.0-beta**
 
 Project Solace helps households answer one question each pay cycle:
 
@@ -20,6 +20,7 @@ It is not a transaction tracker, bank importer, or full accounting app. It is a 
 - Shows a payday checklist of transfers to complete
 - Tracks planned purchases (shared and individual)
 - Provides a calendar view of upcoming bills and income dates
+- Forecasts the bills account balance day by day and warns when a future bill won't be covered
 - Supports cycle closeout, cycle history, and an annual summary
 
 ## What it is not

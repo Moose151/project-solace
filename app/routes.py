@@ -24,6 +24,11 @@ from .budget_engine import (
     is_shared_purchase, planned_purchase_scope_label, calculate_shared_income_bucket_additions,
     apply_shared_income_allocations,
 )
+from .forecast import (
+    bill_pays_from_account, forecast_bill_events, forecast_inflow_events,
+    build_forecast, balance_on,
+)
+from dateutil.relativedelta import relativedelta
 
 main = Blueprint("main", __name__)
 
@@ -468,6 +473,61 @@ def get_cycle_window(settings, income_sources=None, offset=0, today=None):
     return cycle_start, cycle_end, next_payday
 
 
+def build_bills_forecast(settings, today=None):
+    """Assemble the bills-account forecast used by the dashboard and /forecast.
+
+    Starts from the latest balance snapshot and simulates forward: Bills-bucket
+    transfers land on paydays, bill occurrences come out on due dates. When the
+    snapshot is older than today, the simulation starts at the snapshot date so
+    transfers and payments made since then are still accounted for.
+    """
+    today = today or date.today()
+    latest = AccountBalanceSnapshot.query.order_by(
+        AccountBalanceSnapshot.snapshot_date.desc(), AccountBalanceSnapshot.id.desc()
+    ).first()
+    snapshot_date = parse_date(latest.snapshot_date) if latest else today
+    starting_balance = money(latest.balance) if latest else 0
+    start = min(snapshot_date, today)
+    months = int(getattr(settings, "forecast_months", 12) or 12)
+    months = max(1, min(months, 36))
+    end = today + relativedelta(months=months)
+
+    income_sources = IncomeSource.query.filter_by(active=True).order_by(IncomeSource.next_pay_date, IncomeSource.name).all()
+    buckets = Bucket.query.filter_by(active=True).order_by(Bucket.sort_order, Bucket.name).all()
+    bills = RecurringBill.query.filter_by(active=True).all()
+    occurrences = BillOccurrence.query.filter(BillOccurrence.due_date <= end.isoformat()).all()
+
+    cycle_start, _, _ = get_cycle_window(settings, income_sources, today=start)
+    interval = 7 if (getattr(settings, "pay_frequency", "fortnightly") or "fortnightly") == "weekly" else 14
+    account_name = getattr(settings, "bills_account_name", None) or ""
+    include_blank = bool(getattr(settings, "bills_account_include_blank", True))
+
+    inflows = forecast_inflow_events(income_sources, buckets, cycle_start, interval, start, end)
+    bill_events = forecast_bill_events(
+        bills, occurrences, start, end,
+        account_name=account_name, include_blank=include_blank,
+    )
+    forecast = build_forecast(starting_balance, inflows + bill_events)
+    excluded_bills = [
+        bill for bill in bills
+        if not bill_pays_from_account(bill, account_name, include_blank)
+    ]
+
+    return {
+        "latest_snapshot": latest,
+        "snapshot_date": snapshot_date if latest else None,
+        "snapshot_age_days": (today - snapshot_date).days if latest else None,
+        "starting_balance": starting_balance,
+        "start": start,
+        "end": end,
+        "months": months,
+        "account_name": account_name,
+        "forecast": forecast,
+        "balance_today": balance_on(forecast, starting_balance, today),
+        "excluded_bills": excluded_bills,
+    }
+
+
 def cycle_bill_cutoff(settings, cycle_end, next_payday):
     """Return the final bill date included in a pay cycle.
 
@@ -807,6 +867,8 @@ def dashboard():
     show_setup = (not settings.setup_checklist_dismissed) and (not all(step["done"] for step in setup_steps))
     dashboard_widgets, enabled_widgets = get_dashboard_widgets()
 
+    bills_forecast = build_bills_forecast(settings, today=today) if "account_balance" in enabled_widgets else None
+
     savings_goal_rows = []
     for p in purchases:
         pf = money(planned_purchase_fortnightly_amount(p, settings.first_payday))
@@ -869,6 +931,7 @@ def dashboard():
         dashboard_widgets=dashboard_widgets,
         enabled_widgets=enabled_widgets,
         savings_goal_rows=savings_goal_rows,
+        bills_forecast=bills_forecast,
     )
 
 
@@ -921,7 +984,7 @@ def reset_dashboard_layout():
         ("due_before_next_payday", "Due this cycle", True, 50, "wide", "Upcoming bills due before the current cycle ends."),
         ("overdue_bills", "Overdue bills", True, 60, "wide", "Unpaid bills with due dates before today."),
         ("planned_purchases", "Planned purchases", False, 70, "medium", "Active planned purchases and quick-add saved amount."),
-        ("account_balance", "Bills account balance", False, 80, "medium", "Latest manual bills account balance snapshot."),
+        ("account_balance", "Bills account forecast", True, 80, "medium", "Bills account balance with a forward forecast and shortfall warnings."),
         ("due_next_30_days", "Due in next 30 days", False, 90, "wide", "All unpaid bills due in the next 30 days."),
         ("recurring_totals", "Recurring totals", False, 100, "medium", "Monthly average and annual recurring bill totals."),
     ]
@@ -1894,6 +1957,49 @@ def account_balance():
         return redirect(url_for("main.account_balance"))
     rows = AccountBalanceSnapshot.query.order_by(AccountBalanceSnapshot.snapshot_date.desc(), AccountBalanceSnapshot.id.desc()).limit(20).all()
     return render_template("account_balance.html", form=form, snapshots=rows)
+
+
+@main.route("/forecast")
+@login_required
+def forecast_page():
+    settings = get_settings()
+    today = date.today()
+    data = build_bills_forecast(settings, today=today)
+
+    # Optional "balance on a chosen date" lookup via ?on=YYYY-MM-DD.
+    check_date = None
+    check_balance = None
+    check_error = None
+    raw_check = request.args.get("on", "").strip()
+    if raw_check:
+        try:
+            check_date = parse_date(raw_check)
+        except ValueError:
+            check_error = "Enter a valid date."
+        if check_date:
+            if check_date > data["end"]:
+                check_error = f"That date is beyond the {data['months']}-month forecast horizon. Increase the horizon in Settings to look further ahead."
+                check_date = None
+            else:
+                check_balance = balance_on(data["forecast"], data["starting_balance"], check_date)
+
+    # Chart series: starting point plus the running balance after each event.
+    chart_points = [{"d": data["start"].isoformat(), "b": data["starting_balance"]}]
+    chart_points.extend(
+        {"d": event["date"].isoformat(), "b": event["balance_after"], "s": 1 if event.get("shortfall") else 0}
+        for event in data["forecast"]["events"]
+    )
+    chart_points.append({"d": data["end"].isoformat(), "b": data["forecast"]["end_balance"]})
+
+    return render_template(
+        "forecast.html",
+        data=data,
+        today=today,
+        check_date=check_date,
+        check_balance=check_balance,
+        check_error=check_error,
+        chart_points=chart_points,
+    )
 
 
 

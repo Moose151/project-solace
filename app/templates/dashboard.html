@@ -313,24 +313,39 @@
         </div>
 
       {% elif widget.widget_key == 'account_balance' %}
-        <div class="card h-100">
+        <div class="card h-100 {{ 'border-danger' if bills_forecast and bills_forecast.forecast.shortfalls }}">
           <div class="card-body">
             <div class="d-flex justify-content-between align-items-start gap-3">
               <div>
-                <div class="metric-label">Latest bills account balance</div>
+                <div class="metric-label">Bills account balance</div>
                 {% if latest_balance %}
                   <div class="h3 mb-1">{{ settings.currency_symbol }}{{ '%.2f'|format(latest_balance.balance) }}</div>
-                  <div class="text-muted small">Recorded {{ latest_balance.snapshot_date }}</div>
+                  <div class="text-muted small">Recorded {{ latest_balance.snapshot_date|format_date }}</div>
                 {% else %}
                   <div class="h5 mb-1">No balance recorded</div>
-                  <div class="text-muted small">Optional manual balance snapshot.</div>
+                  <div class="text-muted small">Record it to unlock the forecast.</div>
                 {% endif %}
               </div>
               <a class="btn btn-outline-primary btn-sm" href="{{ url_for('main.account_balance') }}">Update</a>
             </div>
             <hr>
-            <div class="mini-stat"><span>Unpaid this cycle</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(current_cycle_unpaid) }}</strong></div>
-            {% if latest_balance %}<div class="mini-stat"><span>Projected after these bills</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(projected_balance_after_cycle) }}</strong></div>{% endif %}
+            {% if bills_forecast %}
+              {% if latest_balance %}<div class="mini-stat"><span>Projected today</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(bills_forecast.balance_today) }}</strong></div>{% endif %}
+              <div class="mini-stat"><span>Lowest point ({{ bills_forecast.months }} months)</span><strong class="{{ 'text-danger' if bills_forecast.forecast.min_balance < 0 }}">{{ settings.currency_symbol }}{{ '%.2f'|format(bills_forecast.forecast.min_balance) }}{% if bills_forecast.forecast.min_date %} · {{ bills_forecast.forecast.min_date.isoformat()|format_date }}{% endif %}</strong></div>
+              {% if bills_forecast.forecast.shortfalls %}
+                {% set first_short = bills_forecast.forecast.shortfalls[0] %}
+                <div class="alert alert-danger py-2 px-3 mt-2 mb-2 small">
+                  ⚠ {{ bills_forecast.forecast.shortfalls|length }} bill{{ 's' if bills_forecast.forecast.shortfalls|length != 1 }} won't be covered —
+                  first is <strong>{{ first_short.label }}</strong> on {{ first_short.date.isoformat()|format_date }}
+                  ({{ settings.currency_symbol }}{{ '%.2f'|format(-first_short.balance_after) }} short).
+                </div>
+              {% else %}
+                <div class="text-success small mt-2 mb-2">✓ Every upcoming bill is covered.</div>
+              {% endif %}
+              <a class="btn btn-outline-primary btn-sm w-100" href="{{ url_for('main.forecast_page') }}">Open full forecast</a>
+            {% else %}
+              <div class="mini-stat"><span>Unpaid this cycle</span><strong>{{ settings.currency_symbol }}{{ '%.2f'|format(current_cycle_unpaid) }}</strong></div>
+            {% endif %}
           </div>
         </div>
 

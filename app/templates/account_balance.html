@@ -1,10 +1,11 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
   <div>
     <h1 class="mb-1">Bills Account Balance</h1>
-    <p class="text-muted mb-0">Optional manual balance snapshots. This is not transaction tracking.</p>
+    <p class="text-muted mb-0">Manual balance snapshots — update any time the account balance changes. The latest snapshot drives the balance forecast.</p>
   </div>
+  <a class="btn btn-outline-primary btn-sm" href="{{ url_for('main.forecast_page') }}">View forecast</a>
 </div>
 
 <div class="row g-4">
