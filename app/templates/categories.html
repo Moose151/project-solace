@@ -15,9 +15,9 @@
   </div>
   <div class="col-lg-8">
     <div class="card shadow-sm"><div class="card-body">
-      <table class="table table-hover"><thead><tr><th>Name</th><th>Type</th><th>Budget/fortnight</th><th>Active</th></tr></thead><tbody>
+      <div class="table-responsive"><table class="table table-hover"><thead><tr><th>Name</th><th>Type</th><th>Budget/fortnight</th><th>Active</th></tr></thead><tbody>
       {% for category in categories %}<tr><td>{{ category.name }}</td><td>{{ category.category_type }}</td><td>{% if category.fortnightly_budget %}{{ settings.currency_symbol }}{{ '%.2f'|format(category.fortnightly_budget) }}{% else %}<span class="text-muted">—</span>{% endif %}</td><td>{{ 'Yes' if category.active else 'No' }}</td></tr>{% endfor %}
-      </tbody></table>
+      </tbody></table></div>
     </div></div>
   </div>
 </div>

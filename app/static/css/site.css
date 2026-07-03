@@ -603,6 +603,11 @@ html[data-bs-theme="dark"] .table {
   color: var(--hs-muted);
 }
 
+.summary-pill strong,
+.mini-stat strong {
+  text-align: right;
+}
+
 .mini-stat.total {
   border-top: 1px solid var(--hs-border);
   margin-top: .5rem;
@@ -643,6 +648,33 @@ html[data-bs-theme="dark"] .table {
 
 .checklist-row:hover {
   border-color: rgba(63, 111, 143, .42);
+}
+
+@media (max-width: 576px) {
+  /* Give the label room on phones: amount + hide control drop to a second
+     line instead of squeezing the label into one word per line. */
+  .checklist-row {
+    flex-wrap: wrap;
+  }
+
+  .checklist-row > span.flex-grow-1 {
+    flex-basis: calc(100% - 2.25rem);
+  }
+
+  .checklist-row > strong {
+    margin-left: 2.25rem;
+  }
+}
+
+/* Sticky header for scrollable tables. The theme's table background is
+   transparent, so sticky cells need their own solid surface or the header
+   text floats over the rows scrolling underneath. */
+.table-sticky-head thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--hs-surface);
+  box-shadow: inset 0 -1px 0 var(--hs-border-strong);
 }
 
 /* Calendar --------------------------------------------------------------- */
@@ -796,8 +828,30 @@ html[data-bs-theme="dark"] .table {
     min-height: 42px;
   }
 
-  .table-responsive table {
-    min-width: 720px;
+  /* Only genuinely dense tables keep a forced width (and sideways scroll).
+     Small tables must compress to fit so amount columns stay visible. */
+  .table-responsive .table-wide {
+    min-width: 680px;
+  }
+
+  .table-responsive .table {
+    font-size: .85rem;
+  }
+
+  .table-responsive .table td,
+  .table-responsive .table th {
+    padding-left: .3rem;
+    padding-right: .3rem;
+  }
+
+  .table-responsive .table td:first-child,
+  .table-responsive .table th:first-child {
+    padding-left: 0;
+  }
+
+  .table-responsive .table td:last-child,
+  .table-responsive .table th:last-child {
+    padding-right: 0;
   }
 
   .card-body {

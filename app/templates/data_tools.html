@@ -48,7 +48,7 @@
       <form method="post" action="{{ url_for('main.cancel_import_bills') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-secondary">Cancel</button></form>
     </div>
   </div>
-  <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Row</th><th>Name</th><th>Amount</th><th>Frequency</th><th>Due</th><th>Category</th><th>Status</th></tr></thead><tbody>
+  <div class="table-responsive"><table class="table table-sm align-middle table-wide"><thead><tr><th>Row</th><th>Name</th><th>Amount</th><th>Frequency</th><th>Due</th><th>Category</th><th>Status</th></tr></thead><tbody>
   {% for row in import_preview %}
     <tr class="{% if row.errors %}table-warning{% endif %}"><td>{{ row.source_row }}</td><td>{{ row.name }}</td><td>{{ settings.currency_symbol }}{{ '%.2f'|format(row.amount or 0) }}</td><td>{{ row.frequency }}</td><td>{{ row.due_day }}{% if row.due_month %}/{{ row.due_month }}{% endif %}</td><td>{{ row.category }}</td><td>{% if row.errors %}<span class="text-danger">{{ row.errors|join('; ') }}</span>{% else %}<span class="text-success">Ready</span>{% endif %}</td></tr>
   {% endfor %}

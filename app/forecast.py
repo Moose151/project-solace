@@ -257,3 +257,19 @@ def balance_on(forecast, starting_balance, target_date):
             break
         balance = event["balance_after"]
     return balance
+
+
+def safe_to_withdraw(forecast, balance_today, from_date):
+    """Return how much could be taken out on from_date without risking a bill.
+
+    Withdrawing X today lowers every future balance point by X, so the safe
+    amount is the lowest projected balance from today to the end of the
+    horizon — take out more than that and at least one future bill would
+    overdraw the account. Already-negative forecasts return zero.
+    """
+    from_date = parse_date(from_date)
+    lowest = money(balance_today)
+    for event in forecast["events"]:
+        if event["date"] >= from_date and event["balance_after"] < lowest:
+            lowest = event["balance_after"]
+    return money(max(lowest, 0))

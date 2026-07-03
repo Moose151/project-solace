@@ -6,6 +6,7 @@ from app.forecast import (
     build_forecast,
     forecast_bill_events,
     forecast_inflow_events,
+    safe_to_withdraw,
 )
 
 
@@ -184,6 +185,40 @@ def test_build_forecast_flags_shortfalls_and_orders_inflows_first():
     assert result["min_balance"] == -200
     assert result["min_date"] == date(2026, 7, 20)
     assert result["end_balance"] == -200
+
+
+def test_safe_to_withdraw_is_limited_by_the_lowest_future_point():
+    # Balance today 500; a 400 bill lands before the next 300 payday, so the
+    # forecast dips to 100 — that dip is the most that can come out today.
+    events = [
+        {"date": date(2026, 7, 10), "type": "bill", "label": "Insurance", "amount": 400, "overdue": False},
+        {"date": date(2026, 7, 16), "type": "inflow", "label": "Pay", "amount": 300, "overdue": False},
+    ]
+    result = build_forecast(500, events)
+
+    assert safe_to_withdraw(result, 500, date(2026, 7, 3)) == 100
+
+
+def test_safe_to_withdraw_is_zero_when_a_shortfall_already_exists():
+    events = [
+        {"date": date(2026, 7, 10), "type": "bill", "label": "Insurance", "amount": 700, "overdue": False},
+    ]
+    result = build_forecast(200, events)
+
+    assert safe_to_withdraw(result, 200, date(2026, 7, 3)) == 0
+
+
+def test_safe_to_withdraw_ignores_events_before_today():
+    # The dip on 1 Jul already happened; only future points constrain today.
+    events = [
+        {"date": date(2026, 7, 1), "type": "bill", "label": "Rent", "amount": 900, "overdue": False},
+        {"date": date(2026, 7, 2), "type": "inflow", "label": "Pay", "amount": 1000, "overdue": False},
+    ]
+    result = build_forecast(1000, events)
+    balance_today = balance_on(result, 1000, date(2026, 7, 3))
+
+    assert balance_today == 1100
+    assert safe_to_withdraw(result, balance_today, date(2026, 7, 3)) == 1100
 
 
 def test_balance_on_returns_running_balance_for_any_date():

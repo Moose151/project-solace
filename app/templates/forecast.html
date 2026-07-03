@@ -25,28 +25,35 @@
 {% endif %}
 
 <div class="row g-3 mb-4">
-  <div class="col-6 col-lg-3">
+  <div class="col-12 col-lg">
+    <div class="card h-100 {{ 'border-success' if data.safe_to_withdraw > 0 }}"><div class="card-body">
+      <div class="metric-label">Safe to take out today</div>
+      <div class="h4 mb-1 {{ 'text-success' if data.safe_to_withdraw > 0 }}">{{ settings.currency_symbol }}{{ '%.2f'|format(data.safe_to_withdraw) }}</div>
+      <div class="text-muted small">{% if data.safe_to_withdraw > 0 %}without putting any future bill at risk{% else %}nothing spare — a future bill needs every dollar{% endif %}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-lg">
     <div class="card h-100"><div class="card-body">
       <div class="metric-label">Recorded balance</div>
       <div class="h4 mb-1">{{ settings.currency_symbol }}{{ '%.2f'|format(data.starting_balance) }}</div>
       <div class="text-muted small">{% if data.latest_snapshot %}on {{ data.snapshot_date.isoformat()|format_date }}{% else %}not recorded{% endif %}</div>
     </div></div>
   </div>
-  <div class="col-6 col-lg-3">
+  <div class="col-6 col-lg">
     <div class="card h-100"><div class="card-body">
       <div class="metric-label">Projected today</div>
       <div class="h4 mb-1">{{ settings.currency_symbol }}{{ '%.2f'|format(data.balance_today) }}</div>
       <div class="text-muted small">{{ today.isoformat()|format_date }}</div>
     </div></div>
   </div>
-  <div class="col-6 col-lg-3">
+  <div class="col-6 col-lg">
     <div class="card h-100"><div class="card-body">
       <div class="metric-label">Lowest point</div>
       <div class="h4 mb-1 {{ 'text-danger' if data.forecast.min_balance < 0 }}">{{ settings.currency_symbol }}{{ '%.2f'|format(data.forecast.min_balance) }}</div>
       <div class="text-muted small">{% if data.forecast.min_date %}on {{ data.forecast.min_date.isoformat()|format_date }}{% else %}no dips ahead{% endif %}</div>
     </div></div>
   </div>
-  <div class="col-6 col-lg-3">
+  <div class="col-6 col-lg">
     <div class="card h-100"><div class="card-body">
       <div class="metric-label">Bills at risk</div>
       <div class="h4 mb-1 {{ 'text-danger' if data.forecast.shortfalls else 'text-success' }}">{{ data.forecast.shortfalls|length }}</div>
@@ -61,15 +68,15 @@
     <h2 class="h5 text-danger">⚠ Shortfall warnings</h2>
     <p class="text-muted small mb-2">These bills would overdraw the bills account when they fall due, after all earlier bills and payday transfers are counted.</p>
     <div class="table-responsive"><table class="table table-sm align-middle mb-0">
-      <thead><tr><th>Due</th><th>Bill</th><th class="text-end">Amount</th><th class="text-end">Balance after</th><th class="text-end">Short by</th></tr></thead>
+      <thead><tr><th>Due</th><th>Bill</th><th class="text-end d-none d-sm-table-cell">Amount</th><th class="text-end d-none d-md-table-cell">Balance after</th><th class="text-end">Short by</th></tr></thead>
       <tbody>
       {% for event in data.forecast.shortfalls[:15] %}
         <tr>
-          <td>{{ event.date.isoformat()|format_date }}{% if event.overdue %} <span class="badge text-bg-warning">overdue</span>{% endif %}</td>
+          <td class="text-nowrap"><span class="d-none d-sm-inline">{{ event.date.isoformat()|format_date }}</span><span class="d-sm-none">{{ event.date.strftime('%d %b %y') }}</span>{% if event.overdue %} <span class="badge text-bg-warning">overdue</span>{% endif %}</td>
           <td>{{ event.label }}</td>
-          <td class="text-end">{{ settings.currency_symbol }}{{ '%.2f'|format(event.amount) }}</td>
-          <td class="text-end text-danger">{{ settings.currency_symbol }}{{ '%.2f'|format(event.balance_after) }}</td>
-          <td class="text-end text-danger fw-semibold">{{ settings.currency_symbol }}{{ '%.2f'|format(-event.balance_after) }}</td>
+          <td class="text-end d-none d-sm-table-cell">{{ settings.currency_symbol }}{{ '%.2f'|format(event.amount) }}</td>
+          <td class="text-end text-danger d-none d-md-table-cell">{{ settings.currency_symbol }}{{ '%.2f'|format(event.balance_after) }}</td>
+          <td class="text-end text-danger fw-semibold text-nowrap">{{ settings.currency_symbol }}{{ '%.2f'|format(-event.balance_after) }}</td>
         </tr>
       {% endfor %}
       </tbody>
@@ -114,15 +121,23 @@
     <p class="text-muted small mb-2">Every expected transfer in and bill out, with the running balance after each.</p>
     {% if data.forecast.events %}
     <div class="table-responsive" style="max-height: 26rem; overflow-y: auto;">
-      <table class="table table-sm align-middle mb-0">
-        <thead class="sticky-top"><tr><th>Date</th><th>Event</th><th class="text-end">In</th><th class="text-end">Out</th><th class="text-end">Balance</th></tr></thead>
+      <table class="table table-sm align-middle mb-0 table-sticky-head">
+        <thead><tr>
+          <th>Date</th>
+          <th>Event</th>
+          <th class="text-end d-sm-none">Amount</th>
+          <th class="text-end d-none d-sm-table-cell">In</th>
+          <th class="text-end d-none d-sm-table-cell">Out</th>
+          <th class="text-end">Balance</th>
+        </tr></thead>
         <tbody>
         {% for event in data.forecast.events %}
           <tr class="{{ 'table-danger' if event.shortfall }}">
-            <td class="text-nowrap">{{ event.date.isoformat()|format_date }}</td>
+            <td class="text-nowrap"><span class="d-none d-sm-inline">{{ event.date.isoformat()|format_date }}</span><span class="d-sm-none">{{ event.date.strftime('%d %b %y') }}</span></td>
             <td>{{ event.label }}{% if event.overdue %} <span class="badge text-bg-warning">overdue</span>{% endif %}</td>
-            <td class="text-end text-success">{% if event.type == 'inflow' %}+{{ settings.currency_symbol }}{{ '%.2f'|format(event.amount) }}{% endif %}</td>
-            <td class="text-end">{% if event.type == 'bill' %}−{{ settings.currency_symbol }}{{ '%.2f'|format(event.amount) }}{% endif %}</td>
+            <td class="text-end text-nowrap d-sm-none {{ 'text-success' if event.type == 'inflow' }}">{{ '+' if event.type == 'inflow' else '−' }}{{ settings.currency_symbol }}{{ '%.2f'|format(event.amount) }}</td>
+            <td class="text-end text-success d-none d-sm-table-cell">{% if event.type == 'inflow' %}+{{ settings.currency_symbol }}{{ '%.2f'|format(event.amount) }}{% endif %}</td>
+            <td class="text-end d-none d-sm-table-cell">{% if event.type == 'bill' %}−{{ settings.currency_symbol }}{{ '%.2f'|format(event.amount) }}{% endif %}</td>
             <td class="text-end fw-semibold {{ 'text-danger' if event.balance_after < 0 }}">{{ settings.currency_symbol }}{{ '%.2f'|format(event.balance_after) }}</td>
           </tr>
         {% endfor %}

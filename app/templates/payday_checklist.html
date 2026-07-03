@@ -55,7 +55,7 @@
         <input class="form-check-input" type="checkbox" name="completed_{{ item.id }}" {% if item.completed %}checked{% endif %}>
         <span class="flex-grow-1">{{ item.label }}{% if item.completed_at %}<br><small class="text-muted">Completed {{ item.completed_at }}</small>{% endif %}</span>
         {% if item.amount %}<strong>{{ settings.currency_symbol }}{{ '%.2f'|format(item.amount) }}</strong>{% endif %}
-        {% if row.is_transfer %}<button type="submit" form="hide-item-{{ item.id }}" class="btn btn-link btn-sm text-muted p-0 ms-2">Hide if automatic</button>{% endif %}
+        {% if row.is_transfer %}<button type="submit" form="hide-item-{{ item.id }}" class="btn btn-link btn-sm text-muted p-0 ms-2 text-nowrap" title="Hide this transfer from future checklists because it happens automatically"><span class="d-none d-md-inline">Hide if automatic</span><span class="d-md-none">Hide</span></button>{% endif %}
       </div>
     {% else %}<p class="text-muted mb-0">No checklist items generated.</p>{% endfor %}
     </div>

@@ -26,7 +26,7 @@ from .budget_engine import (
 )
 from .forecast import (
     bill_pays_from_account, forecast_bill_events, forecast_inflow_events,
-    build_forecast, balance_on,
+    build_forecast, balance_on, safe_to_withdraw,
 )
 from dateutil.relativedelta import relativedelta
 
@@ -512,6 +512,7 @@ def build_bills_forecast(settings, today=None):
         bill for bill in bills
         if not bill_pays_from_account(bill, account_name, include_blank)
     ]
+    balance_today = balance_on(forecast, starting_balance, today)
 
     return {
         "latest_snapshot": latest,
@@ -523,7 +524,8 @@ def build_bills_forecast(settings, today=None):
         "months": months,
         "account_name": account_name,
         "forecast": forecast,
-        "balance_today": balance_on(forecast, starting_balance, today),
+        "balance_today": balance_today,
+        "safe_to_withdraw": safe_to_withdraw(forecast, balance_today, today),
         "excluded_bills": excluded_bills,
     }
 
