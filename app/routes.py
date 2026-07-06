@@ -255,18 +255,29 @@ def get_or_create_category(name, category_type="Bill"):
 
 
 def audit(action, entity_type=None, entity_name=None, details=None):
-    """Record a lightweight audit event for important user actions."""
+    """Record a lightweight audit event for important user actions.
+
+    Audit logging must never block the main workflow. The insert runs inside a
+    SAVEPOINT (begin_nested) so that if it fails — for example on an older
+    database whose audit_log table is missing or out of date — only the audit
+    row is rolled back. The caller's pending changes stay intact and its
+    db.session.commit() still succeeds.
+
+    Wrapping only db.session.add() was not enough: add() just stages the row,
+    so the failure surfaced later at the caller's commit() and turned every
+    audited action (marking a bill paid, skipping, etc.) into an HTTP 500.
+    """
     try:
-        db.session.add(AuditLog(
-            created_at=datetime.now().isoformat(timespec="seconds"),
-            action=action,
-            entity_type=entity_type,
-            entity_name=entity_name,
-            details=details,
-        ))
+        with db.session.begin_nested():
+            db.session.add(AuditLog(
+                created_at=datetime.now().isoformat(timespec="seconds"),
+                action=action,
+                entity_type=entity_type,
+                entity_name=entity_name,
+                details=details,
+            ))
     except Exception:
-        # Audit logging should never block the main workflow.
-        pass
+        current_app.logger.warning("Audit logging failed for action %r", action, exc_info=True)
 
 
 def get_database_path():
